@@ -260,10 +260,9 @@ module RubyCoMa
       # try all node starts, stopping when we've hit a leaf to add our line
       can_add_line = false
       line_finished = false
-      until can_add_line || line_finished
+      until can_add_line
         counter = 0
         @@helpers.each_value { |type|
-
           if type[:start].call(self)
             if @offset >= @current_line.length
               line_finished = true
@@ -274,6 +273,7 @@ module RubyCoMa
           end
           counter += 1
         }
+        return if line_finished
         if counter == @@helpers.count
           p = Paragraph.new
           add_child(@current_block, p)
@@ -281,7 +281,7 @@ module RubyCoMa
         end
       end
 
-      add_line_to_node(@current_line, @current_block) if !line_finished
+      add_line_to_node(@current_line, @current_block)
     end
 
     def finalize_node(node)
