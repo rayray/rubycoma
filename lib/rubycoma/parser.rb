@@ -55,7 +55,34 @@ module RubyCoMa
               old_offset != parser.offset
             },
             :finalize => -> {},
-            :start    => -> (parser) {false}
+            :start    => -> (parser, node) {
+              ln = parser.current_line[parser.next_nonspace..-1]
+              list_node = nil
+              spaces_after_marker = 0
+              if match = REGEX_LISTBULLET.match(ln)
+                list_node = ListItem.new
+                list_node.marker_character = match[0][0]
+                spaces_after_marker = match[1].length
+              elsif match = REGEX_LISTORDERED.match(ln)
+                list_node = ListItem.new
+                list_node.is_ordered = true
+                list_node.start = Integer(match[1])
+                spaces_after_marker = match[3].length
+              else
+                return false
+              end
+
+              list_node.padding = match[0].length
+              list_node.padding -= (spaces_after_marker + 1) unless spaces_after_marker.between?(1, 4) && match[0].length != ln.length
+              parser.offset = parser.next_nonspace + list_node.padding
+
+              if parser.current_block.class != List || !node.matches?(list_node)
+                node = parser.add_child(node, List.new)
+                node.copy_properties(list_node)
+              end
+              parser.add_child(node, list_node)
+              true
+            }
         },
         BlockQuote => {
             :continue => -> (parser) {
@@ -336,6 +363,7 @@ module RubyCoMa
       end
       container.add_child(child)
       @current_block = child
+      @current_block
     end
 
     # def parse_list(first_line, parent_block)

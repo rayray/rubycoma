@@ -156,22 +156,44 @@ module Nodes
 
   class Document < Container; end
   class BlockQuote < Container; end
-  class ListItem < Container
-    attr_accessor :marker_offset
-    attr_accessor :padding
-    attr_accessor :marker_character
-  end
 
   class List < Container
     attr_accessor :is_ordered
+    attr_accessor :is_tight
     attr_accessor :marker_character
     attr_accessor :start
+    attr_accessor :delimiter
+    attr_accessor :marker_offset
+    attr_accessor :padding
+
     def can_contain?(block); block.class == ListItem; end;
     def initialize
       super()
       @is_ordered = false
       @marker_character = ''
       @start = -1
+      @is_tight = true
+    end
+
+    def matches?(l)
+      @is_ordered == l.is_ordered && @delimiter == l.delimiter && @marker_character == l.marker_character
+    end
+
+    def copy_properties(l)
+      @is_ordered = l.is_ordered
+      @is_tight = l.is_tight
+      @marker_character = l.marker_character
+      @start = l.start
+      @delimiter = l.delimiter
+      @marker_offset = l.marker_offset
+      @padding = l.padding
+    end
+  end
+
+  #inheritance abuse!
+  class ListItem < List
+    def can_contain?(block)
+      block.class != ListItem
     end
   end
 end
