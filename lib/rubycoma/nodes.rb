@@ -113,11 +113,12 @@ module Nodes
     attr_accessor :is_fenced
     attr_accessor :fence_character
     attr_accessor :fence_length
-    attr_accessor :offset
+    attr_accessor :fence_offset
+    attr_accessor :info_string
 
     def initialize(fenced = false, char = '', length = 0, offset = 0)
       super()
-      @is_fenced, @fence_character, @fence_length, @offset = fenced, char, length, offset
+      @is_fenced, @fence_character, @fence_length, @fence_offset = fenced, char, length, offset
     end
   end
 
