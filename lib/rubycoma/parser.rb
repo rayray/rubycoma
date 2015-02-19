@@ -279,18 +279,17 @@ module RubyCoMa
         return
       end
 
-      if @last_line_blank && @on_blank_line
-        return if close_all_lists(@current_block)
+      if @on_blank_line
+        return if @last_line_blank && close_all_lists(@current_block)
       end
 
-      # if we shouldnt continue, back up until we find a container for our current line
       unless should_continue
-        # close off fenced code if necessary
-        if @current_block.class == Code && @current_block.is_fenced
+        # close off fenced code or broken paragraph if necessary
+        if (@current_block.class == Code && @current_block.is_fenced) || @current_block.class == Paragraph
           finalize_node(@current_block)
           return
         end
-
+        # if we shouldnt continue, back up until we find a container for our current line
         finalize_node(@current_block) until @current_block.class <= Container || @current_block.class == Paragraph
       end
 
@@ -312,8 +311,10 @@ module RubyCoMa
         }
         return if line_finished
         if counter == @@helpers.count
-          p = Paragraph.new
-          add_child(@current_block, p)
+          unless @current_block.class == Paragraph
+            p = Paragraph.new
+            add_child(@current_block, p)
+          end
           can_add_line = true
         end
       end
