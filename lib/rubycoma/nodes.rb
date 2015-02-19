@@ -44,35 +44,31 @@ module Nodes
     end
 
     def to_s(indent = 0)
-      str =  ' ' * (indent) << "{\n"
-      str << ' ' * (2+indent) << "class: #{self.class.name}\n"
+      var_indent = indent + 2
+      arr_indent = indent + 4
+      str =  ' ' * indent << "{\n"
+      str << ' ' * var_indent << "class: " << self.class.name << "\n"
 
-      self.instance_variables.each { |v|
+      self.instance_variables.each { |var|
+        next if var == :@parent
+        value = instance_variable_get(var)
 
+        if value.class == Array
+          str << ' ' * var_indent << "#{var}: [\n"
+          value.each { |obj|
+
+            if obj.class <= Block
+              str << obj.to_s(arr_indent)
+            else
+              str << ' ' * arr_indent << obj.to_s
+            end
+            str << "\n"
+          }
+          str << ' ' * var_indent << "]\n"
+        else
+          str << ' ' * var_indent << "#{var}: #{value}\n"
+        end
       }
-      # if @info.length > 0
-      #   str << ' ' * (2+indent) << "info: {\n"
-      #   @info.each { |key, value|
-      #     str << ' ' * (4+indent) << "#{key} : #{value}\n"
-      #   }
-      #   str << ' ' * (2+indent) << "}\n"
-      # end
-      #
-      # if @children.count > 0
-      #   str << ' ' * (2+indent) << "children: [\n"
-      #   @children.each { |block|
-      #     str << block.to_s(2+indent)
-      #   }
-      #   str << ' ' * (2+indent) << "]\n"
-      # end
-      #
-      # if @lines.count > 0
-      #   str << ' ' * (2+indent) << "lines: [\n"
-      #   @lines.each { |line|
-      #     str << ' ' * (4+indent) << '"' << line << "\"\n"
-      #   }
-      #   str << ' ' * (2+indent) << "]\n"
-      # end
 
       str << ' ' * indent << "}\n"
       str
