@@ -41,7 +41,7 @@ module RubyCoMa
             :continue => proc {true},
             :finalize => proc { |parser, node|
               node.children.each_with_index{ |item, index|
-                if item.strings.last == '' && index < node.children.count
+                if defined? item.strings && item.strings.last == '' && index < node.children.count
                   node.is_tight = false
                   break
                 end
@@ -94,7 +94,11 @@ module RubyCoMa
                 parser.finalize_node(parser.current_block)
               end
 
-              if parser.current_block.class != List || !node.matches?(list_node)
+              if parser.current_block.class == ListItem
+                parser.finalize_node(parser.current_block)
+              end
+
+              if parser.current_block.class != List || !parser.current_block.matches?(list_node)
                 parser.add_child(parser.current_block, List.new(list_node.is_ordered))
                 parser.current_block.copy_properties(list_node)
               end
@@ -278,6 +282,9 @@ module RubyCoMa
         @on_blank_line = false
         incorporate_line(line)
       }
+      until @current_block.nil?
+        finalize_node(@current_block)
+      end
       puts @doc.to_s
       @doc
     end
@@ -342,7 +349,7 @@ module RubyCoMa
 
     def finalize_node(node)
       node.open = false
-      @@helpers[node.class][:finalize].call()
+      @@helpers[node.class][:finalize].call(self, node)
       @current_block = node.parent
     end
 
