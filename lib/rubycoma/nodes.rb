@@ -53,16 +53,15 @@ module Nodes
         next if var == :@parent
         value = instance_variable_get(var)
 
-        if value.class == Array
+        if value.class == Array && value.count > 0
           str << ' ' * var_indent << "#{var}: [\n"
           value.each { |obj|
 
             if obj.class <= Block
               str << obj.to_s(arr_indent)
-            else
-              str << ' ' * arr_indent << obj.to_s
+            elsif obj.class == String
+              str << ' ' * arr_indent << "\"#{obj.to_s}\"\n"
             end
-            str << "\n"
           }
           str << ' ' * var_indent << "]\n"
         else
@@ -112,9 +111,12 @@ module Nodes
     attr_accessor :fence_offset
     attr_accessor :info_string
 
-    def initialize(fenced = false, char = '', length = 0, offset = 0)
+    def initialize(fenced = false, char = nil, length = nil, offset = nil)
       super()
-      @is_fenced, @fence_character, @fence_length, @fence_offset = fenced, char, length, offset
+      @is_fenced = fenced
+      if char && length && offset
+        @fence_character, @fence_length, @fence_offset = char, length, offset
+      end
     end
   end
 
@@ -164,12 +166,10 @@ module Nodes
     attr_accessor :padding
 
     def can_contain?(block); block.class == ListItem; end;
-    def initialize
+    def initialize(ordered)
       super()
-      @is_ordered = false
-      @marker_character = ''
-      @start = -1
       @is_tight = true
+      @is_ordered = ordered
     end
 
     def matches?(l)

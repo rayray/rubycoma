@@ -39,7 +39,21 @@ module RubyCoMa
         },
         List => {
             :continue => proc {true},
-            :finalize => proc {},
+            :finalize => proc { |parser, node|
+              node.children.each_with_index{ |item, index|
+                if item.strings.last == '' && index < node.children.count
+                  node.is_tight = false
+                  break
+                end
+
+                item.children.each_with_index { |subitem, subindex|
+                  if subitem.strings.last == '' && (index < node.children.count || subindex < item.children.count)
+                    node.is_tight = false
+                    break
+                  end
+                }
+              }
+            },
             :start    => proc {false}
         },
         ListItem => {
@@ -55,17 +69,16 @@ module RubyCoMa
               old_offset != parser.offset
             },
             :finalize => proc {},
-            :start    => proc { |parser, node|
-              ln = parser.current_line[parser.next_nonspace..-1]
+            :start    => proc { |parser|
+              ln = parser.current_line[parser.offset..-1]
               list_node = nil
               spaces_after_marker = 0
               if match = REGEX_LISTBULLET.match(ln)
-                list_node = ListItem.new
+                list_node = ListItem.new(false)
                 list_node.marker_character = match[0][0]
                 spaces_after_marker = match[1].length
               elsif match = REGEX_LISTORDERED.match(ln)
-                list_node = ListItem.new
-                list_node.is_ordered = true
+                list_node = ListItem.new(true)
                 list_node.start = Integer(match[1])
                 spaces_after_marker = match[3].length
               else
@@ -74,13 +87,18 @@ module RubyCoMa
 
               list_node.padding = match[0].length
               list_node.padding -= (spaces_after_marker + 1) unless spaces_after_marker.between?(1, 4) && match[0].length != ln.length
+              list_node.marker_offset = parser.indent
               parser.offset = parser.next_nonspace + list_node.padding
 
-              if parser.current_block.class != List || !node.matches?(list_node)
-                node = parser.add_child(node, List.new)
-                node.copy_properties(list_node)
+              if parser.current_block.class == Paragraph
+                parser.finalize_node(parser.current_block)
               end
-              parser.add_child(node, list_node)
+
+              if parser.current_block.class != List || !node.matches?(list_node)
+                parser.add_child(parser.current_block, List.new(list_node.is_ordered))
+                parser.current_block.copy_properties(list_node)
+              end
+              parser.add_child(parser.current_block, list_node)
               true
             }
         },
@@ -99,7 +117,7 @@ module RubyCoMa
               if parser.char_code_at(parser.current_line, parser.next_nonspace) == CHARCODE_GREATERTHAN
                 parser.offset = parser.next_nonspace + 1
                 parser.offset += 1 if parser.char_code_at(parser.current_line, parser.offset) == CHARCODE_SPACE
-                parser.add_child(BlockQuote.new)
+                parser.add_child(parser.current_block, BlockQuote.new)
                 next true
               end
               false
@@ -180,7 +198,6 @@ module RubyCoMa
                 if parser.current_block.class != Paragraph && !parser.on_blank_line
                   parser.offset += 4
                   cb = Code.new
-                  cb.fence_offset = parser.offset
                   parser.add_child(parser.current_block, cb)
                 else
                   parser.offset = parser.next_nonspace
@@ -212,7 +229,7 @@ module RubyCoMa
             :start    => proc { |parser|
               if REGEX_HTMLOPEN.match(parser.current_line[parser.next_nonspace..-1])
                 b = HTML.new
-                parser.add_child(@current_block, b)
+                parser.add_child(parser.current_block, b)
               end
             }
         },
@@ -261,7 +278,7 @@ module RubyCoMa
         @on_blank_line = false
         incorporate_line(line)
       }
-      @doc.to_s
+      puts @doc.to_s
       @doc
     end
 
@@ -311,6 +328,7 @@ module RubyCoMa
         }
         return if line_finished
         if counter == @@helpers.count
+          return if @on_blank_line
           unless @current_block.class == Paragraph
             p = Paragraph.new
             add_child(@current_block, p)
@@ -329,7 +347,11 @@ module RubyCoMa
     end
 
     def add_line_to_node(line, node)
-      node.strings.push(line[@offset..-1]) if @offset < line.length
+      if @offset >= line.length
+        node.strings.push("")
+      else
+        node.strings.push(line[@offset..-1])
+      end
     end
 
     def expand_tabs(line)
