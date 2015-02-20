@@ -70,7 +70,7 @@ module RubyCoMa
             },
             :finalize => proc {},
             :start    => proc { |parser|
-              ln = parser.current_line[parser.offset..-1]
+              ln = parser.current_line[parser.next_nonspace..-1]
               list_node = nil
               spaces_after_marker = 0
               if match = REGEX_LISTBULLET.match(ln)
@@ -80,6 +80,7 @@ module RubyCoMa
               elsif match = REGEX_LISTORDERED.match(ln)
                 list_node = ListItem.new(true)
                 list_node.start = Integer(match[1])
+                list_node.delimiter = match[2]
                 spaces_after_marker = match[3].length
               else
                 next false
@@ -90,11 +91,9 @@ module RubyCoMa
               list_node.marker_offset = parser.indent
               parser.offset = parser.next_nonspace + list_node.padding
 
-              if parser.current_block.class == Paragraph
-                parser.finalize_node(parser.current_block)
-              end
-
-              if parser.current_block.class == ListItem
+              while (parser.current_block.class == Paragraph) ||
+                  (parser.current_block.class == ListItem && list_node.marker_offset < parser.current_block.padding) ||
+                  (parser.current_block.class == List && list_node.marker_offset < parser.current_block.marker_offset)
                 parser.finalize_node(parser.current_block)
               end
 
@@ -313,8 +312,7 @@ module RubyCoMa
           finalize_node(@current_block)
           return
         end
-        # if we shouldnt continue, back up until we find a container for our current line
-        finalize_node(@current_block) until @current_block.class <= Container || @current_block.class == Paragraph
+        finalize_node(@current_block)
       end
 
       # try all node starts, stopping when we've hit a leaf to add our line
@@ -328,6 +326,8 @@ module RubyCoMa
               line_finished = true
             elsif @current_block.class <= Leaf
               can_add_line = true
+            else
+              find_next_nonspace
             end
             break
           end
