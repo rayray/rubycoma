@@ -70,7 +70,7 @@ module RubyCoMa
                          when CHARCODE_AMPERSAND
                            parse_entity
                          when CHARCODE_ASTERISK || CHARCODE_UNDERSCORE
-                           parse_emphasis
+                           parse_emphasis(c)
                          when CHARCODE_BACKSLASH
                          when CHARCODE_BACKTICK
                          when CHARCODE_COLON
