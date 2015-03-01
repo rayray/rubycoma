@@ -27,6 +27,7 @@ module RubyCoMa
     REGEX_WHITESPACECHARACTER  = /^\s/
     REGEX_WHITESPACE     = /^\s+/
     REGEX_PUNCTUATION       = /^[\u2000-\u206F\u2E00-\u2E7F\\'!"#\$%&\(\)\*\+,\-\.\/:;<=>\?@\[\]\^_`\{\|\}~]/
+    REGEX_ESCAPABLE         =/^[~`!@#$%^&*()-_=+[{\]}\\|'";:,<.>\/?]/
 
     def initialize
       @char_index = 0
@@ -54,7 +55,7 @@ module RubyCoMa
       nil
     end
 
-    def add_inline(type, string)
+    def add_inline(type, string = nil)
       inl = Inline.new(type, string)
       @node.inlines.push(inl)
       inl
@@ -72,6 +73,7 @@ module RubyCoMa
                          when CHARCODE_ASTERISK || CHARCODE_UNDERSCORE
                            parse_emphasis(c)
                          when CHARCODE_BACKSLASH
+                           parse_backslash
                          when CHARCODE_BACKTICK
                          when CHARCODE_COLON
                          when CHARCODE_EXCLAM
@@ -91,6 +93,19 @@ module RubyCoMa
     end
 
     def handle_newline
+      true
+    end
+
+    def parse_backslash
+      @char_index += 1
+      if peek == CHARCODE_NEWLINE
+        @char_index += 1
+        add_inline(:hardbreak)
+      elsif REGEX_ESCAPABLE.match(@node.strings[@line_index][@char_index])
+        add_inline(:text, @node.strings[@line_index][@char_index])
+      else
+        add_inline(:text, '\\')
+      end
       true
     end
 
