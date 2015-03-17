@@ -32,7 +32,7 @@ module RubyCoMa
     def initialize
       @char_index = 0
       @line_index = 0
-      @delimiters = Array.new
+      @delimiters = nil
     end
 
     def peek
@@ -122,12 +122,14 @@ module RubyCoMa
       startpos = @char_index
       @char_index += numdelims
       inl = add_inline(:text, @node[@line_index][startpos..@char_index])
-      @delimiters.push({:cc => cc,
-                       :numdelims => numdelims,
-                       :inline_node => inl,
-                       :can_open => can_open,
-                       :can_close => can_close,
-                       :active => true})
+      add_delimiter({:cc => cc,
+                     :numdelims => numdelims,
+                     :inline_node => inl,
+                     :can_open => can_open,
+                     :can_close => can_close,
+                     :active => true,
+                     :next => nil
+                    })
       true
     end
 
@@ -137,6 +139,23 @@ module RubyCoMa
 
     def char_from_ord(ord)
       [ord].pack('U')
+    end
+
+    def add_delimiter(d)
+      d[:previous] = @delimiters
+      @delimiters[:next] = d unless @delimiters.nil?
+      @delimiters = d
+    end
+
+    def remove_delimiter(d)
+      unless d[:previous].nil?
+        d[:previous][:next] = d[:next]
+      end
+      if d[:next].nil?
+        @delimiters = d[:previous]
+      else
+        d[:next][:previous] = d[:previous]
+      end
     end
 
     def scan_delimiters(cc)
@@ -174,6 +193,41 @@ module RubyCoMa
       end
       @char_index = startpos
       return numdelims, can_open, can_close
+    end
+
+    def process_emphasis(stack_bottom = nil)
+      closer = @delimiters
+      until closer.nil? || closer[:previous] == stack_bottom
+        closer = closer[:previous]
+      end
+      until closer.nil?
+        if closer[:can_close] &&
+            (closer[:cc] == CHARCODE_ASTERISK || closer[:cc] == CHARCODE_UNDERSCORE)
+          opener = closer[:previous]
+          until opener.nil? || opener[:previous] == stack_bottom
+            break if opener[:cc] == closer[:cc] && opener[:can_open]
+            opener = opener[:previous]
+          end
+          unless opener.nil? || opener == stack_bottom
+            if closer[:numdelims] < 3 || opener[:numdelims] < 3
+              use_delims = closer[:numdelims] <= opener[:numdelims] ? closer[:numdelims] : opener[:numdelims]
+            else
+              use_delims = closer[:numdelims] % 2 == 0 ? 2 : 1
+            end
+
+            opener_inl = opener[:node]
+            closer_inl = closer[:node]
+            opener_index = @node.inlines.index(opener_inl)
+            opener[:numdelims] -= use_delims
+            closer[:numdelims] -= use_delims
+
+            opener_inl.content = opener_inl.content[0..opener_inl.content.length - use_delims]
+            closer_inl.content = closer_inl.content[0..closer_inl.content.length - use_delims]
+
+            emph = Inline.new()
+          end
+        end
+      end
     end
   end
 end

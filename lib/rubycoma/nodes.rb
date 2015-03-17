@@ -1,5 +1,39 @@
 module Nodes
-  class Inline
+
+  class DLLNode
+    attr_accessor :next
+    attr_accessor :prev
+
+    def initialize
+      @prev = nil
+      @next = nil
+    end
+
+    def remove
+      unless @prev.nil?
+        @prev.next = @next
+      end
+
+      unless @next.nil?
+        @next.prev = @prev
+      end
+
+      @prev, @next = nil, nil
+    end
+
+    def insert(node)
+      unless @next.nil?
+        @next.prev = node
+        node.next = @next
+      end
+
+      @next = node
+      node.prev = self
+    end
+  end
+
+  class Inline < DLLNode
+    :text
     :normal
     :emphasized
     :strong
@@ -10,23 +44,33 @@ module Nodes
 
     attr_accessor :style
     attr_accessor :content
+    attr_accessor :children
+    attr_accessor :parent
 
     def initialize(style, content)
+      super()
       @style = style
       @content = content
       @attributes = Hash.new
+      @children = Array.new
+      @parent = nil
     end
 
-    def prettyprint(tab = 0)
-      puts "\t" * tab + '{'
-      puts "\t" * (1+tab) + "style: #{style}"
-      puts "\t" * (1+tab) + "content: #{content}"
-      puts "\t" * (1+tab) + 'attributes: {'
-      @attributes.each { |key, value|
-        puts "\t" * (2+tab) + "#{key} : #{value}"
-      }
-      puts "\t" * (1+tab) + '}'
-      puts "\t" * tab + '}'
+    def add_child(child)
+      child.parent = self
+      @children.push(child)
+    end
+
+    def remove_child(block_to_delete)
+      @children.delete(block_to_delete)
+    end
+
+    def to_s(indent = 0)
+      str = ' ' * indent << "{\n"
+      str << ' ' * (indent+2) << "style: #{@style}\n"
+      str << ' ' * (indent+2) << "content: #{@content}\n"
+      str << ' ' * indent << "}\n"
+      str
     end
   end
 
@@ -90,7 +134,7 @@ module Nodes
     def initialize
       super
       @strings = Array.new
-      @inlines = Array.new
+      @inlines, @inlines_head = nil, nil
     end
 
     def accepts_lines?
@@ -99,6 +143,21 @@ module Nodes
 
     def can_contain?(block)
       false
+    end
+
+    def add_inline(inline)
+      unless @inlines.nil?
+        @inlines.insert(inline)
+      end
+      @inlines = inline
+    end
+
+    def remove_inline(inline)
+      if inline == @inlines
+        @inlines == @inlines.prev
+      end
+
+      inline.remove
     end
   end
 
