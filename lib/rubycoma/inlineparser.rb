@@ -191,7 +191,7 @@ module RubyCoMa
             (dest = parse_link_destination) &&
             spnl &&
             REGEX_WHITESPACECHARACTER.match(@node.strings[@line_index][@char_index - 1]) &&
-            (title = parse_link_title || true) &&
+            ((title = parse_link_title) || true) &&
             spnl &&
             peek == CHARCODE_RIGHTPAREN
           @char_index += 1
@@ -208,9 +208,41 @@ module RubyCoMa
                      @node.strings[@line_index][before_label..before_label+n]
                    end
         @char_index = savepos if n == 0
-
-
+        #TODO implement reference map
       end
+
+      if matched
+        inl = Inline.new(is_image ? :image : :link)
+        inl.destination = dest
+        inl.title = title
+
+        tmp = opener[:inline_node].next
+        until tmp.nil?
+          nxt = tmp.next
+          @node.remove_inline(tmp)
+          inl.add_child(tmp)
+          tmp = nxt
+        end
+
+        add_inline(inl)
+        process_emphasis(opener[:previous])
+        @node.remove_inline(opener[:inline_node])
+
+        unless is_image
+          opener = @delimiters
+          until opener.nil?
+            if opener[:cc] == CHARCODE_LEFTBRACKET
+              opener[:active] = false
+            end
+            opener = opener[:previous]
+          end
+        end
+      else
+        remove_delimiter(opener)
+        @char_index = startpos
+        add_inline(:text, ']')
+      end
+      true
     end
 
     def parse_entity
@@ -319,8 +351,8 @@ module RubyCoMa
               use_delims = closer[:numdelims] % 2 == 0 ? 2 : 1
             end
 
-            opener_inl = opener[:node]
-            closer_inl = closer[:node]
+            opener_inl = opener[:inline_node]
+            closer_inl = closer[:inline_node]
             opener_index = @node.inlines.index(opener_inl)
             opener[:numdelims] -= use_delims
             closer[:numdelims] -= use_delims

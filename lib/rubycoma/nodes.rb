@@ -47,6 +47,9 @@ module Nodes
     attr_accessor :children
     attr_accessor :parent
 
+    attr_accessor :destination
+    attr_accessor :title
+
     def initialize(style, content = nil)
       super
       @style = style
@@ -226,7 +229,7 @@ module Nodes
 
     def can_contain?(block); block.class == ListItem; end;
     def initialize(ordered)
-      super()
+      super
       @is_tight = true
       @is_ordered = ordered
     end
