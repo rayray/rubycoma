@@ -47,8 +47,8 @@ module Nodes
     attr_accessor :children
     attr_accessor :parent
 
-    def initialize(style, content)
-      super()
+    def initialize(style, content = nil)
+      super
       @style = style
       @content = content
       @attributes = Hash.new
@@ -183,7 +183,7 @@ module Nodes
   class Header < Leaf
     attr_accessor :level
     def initialize(l)
-      super()
+      super
       @level = l
     end
     def accepts_lines?; false; end
@@ -194,7 +194,7 @@ module Nodes
     attr_reader :children
 
     def initialize
-      super()
+      super
       @children = Array.new
     end
 

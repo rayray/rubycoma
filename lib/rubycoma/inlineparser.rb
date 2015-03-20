@@ -2,6 +2,7 @@ module RubyCoMa
   require_relative '../rubycoma/nodes'
   class InlineParser
     include Nodes
+    require 'cgi'
 
     attr_accessor :line_index
     attr_accessor :char_index
@@ -22,12 +23,26 @@ module RubyCoMa
     CHARCODE_UNDERSCORE     = 95
     CHARCODE_NEWLINE        = 10
 
+    STRINGREGEX_ESCAPABLE   = '[!"#$%&\'()*+,./:;<=>?@[\\\\\\]^_`{|}~-]'
+    STRINGREGEX_ESCAPED_CHAR= '\\\\' << STRINGREGEX_ESCAPABLE
+    STRINGREGEX_REG_CHAR    = '[^\\\\()\\x00-\\x20]'
+    STRINGREGEX_IN_PARENS_NOSP = '\\((' << STRINGREGEX_REG_CHAR << '|' << STRINGREGEX_ESCAPED_CHAR << ')*\\)'
+
     REGEX_NONSPECIALCHARS   = /^[^\n`\[\]\\!<&*_]+/m
     REGEX_ENTITY            = /^&(?:#x[a-f0-9]{1,8}|#[0-9]{1,8}|[a-z][a-z0-9]{1,31});/
     REGEX_WHITESPACECHARACTER  = /^\s/
-    REGEX_WHITESPACE     = /^\s+/
+    REGEX_WHITESPACE        = /^\s+/
     REGEX_PUNCTUATION       = /^[\u2000-\u206F\u2E00-\u2E7F\\'!"#\$%&\(\)\*\+,\-\.\/:;<=>\?@\[\]\^_`\{\|\}~]/
-    REGEX_ESCAPABLE         =/^[~`!@#$%^&*()-_=+[{\]}\\|'";:,<.>\/?]/
+    REGEX_ESCAPABLE         = Regexp.new('^' << STRINGREGEX_ESCAPABLE)
+    REGEX_SPACES            = /^ */
+    REGEX_LINKDESTBRACES    = Regexp.new('^(?:[<](?:[^<>\\n\\\\\\x00]' << '|' << STRINGREGEX_ESCAPED_CHAR << '|' << '\\\\)*[>])')
+    REGEX_LINKDEST          = Regexp.new('^(?:' << STRINGREGEX_REG_CHAR << '+|' << STRINGREGEX_ESCAPED_CHAR << '|' << STRINGREGEX_IN_PARENS_NOSP << ')*')
+    REGEX_LINKTITLE         = Regexp.new('^(?:"(' << STRINGREGEX_ESCAPED_CHAR << '|[^"\\x00])*"' <<
+                                             '|' <<
+                                             '\'(' << STRINGREGEX_ESCAPED_CHAR << '|[^\'\\x00])*\'' <<
+                                             '|' <<
+                                             '\\((' << STRINGREGEX_ESCAPED_CHAR << '|[^)\\x00])*\\))')
+    REGEX_LINKLABEL         = /^\[(?:[^\\\[\]]|\\[\[\]]){0,1000}\]/
 
     def initialize
       @char_index = 0
@@ -55,6 +70,14 @@ module RubyCoMa
       nil
     end
 
+    def spnl
+      match(REGEX_SPACES)
+      if peek == CHARCODE_NEWLINE
+        match(REGEX_SPACES)
+      end
+      true
+    end
+
     def add_inline(type, string = nil)
       inl = Inline.new(type, string)
       @node.inlines.push(inl)
@@ -79,6 +102,7 @@ module RubyCoMa
                          when CHARCODE_EXCLAM
                          when CHARCODE_LEFTBRACKET
                          when CHARCODE_RIGHTBRACKET
+                           parse_right_bracket
                          when CHARCODE_LESSTHAN
                          else
                            parse_string
@@ -107,6 +131,86 @@ module RubyCoMa
         add_inline(:text, '\\')
       end
       true
+    end
+
+    def parse_link_destination
+      res = match(REGEX_LINKDESTBRACES)
+      if res.nil?
+        res = match(REGEX_LINKDEST)
+        return nil if res.nil?
+        return CGI::escape(res)
+      end
+      CGI::escape(res[1..-2])
+    end
+
+    def parse_link_title
+      title = match(REGEX_LINKTITLE)
+      return nil if title.nil?
+      title[1..-2]
+    end
+
+    def parse_link_label
+      m = match(REGEX_LINKLABEL)
+      return 0 if m.nil?
+      m.length
+    end
+
+    def parse_right_bracket
+      @char_index += 1
+      startpos = @char_index
+
+      opener = @delimiters
+
+      until opener.nil?
+        if opener[:cc] == CHARCODE_LEFTBRACKET || opener[:cc] == CHARCODE_EXCLAM
+          break
+        end
+        opener = opener[:previous]
+      end
+
+      if opener.nil?
+        add_inline(:text, "]")
+      end
+
+      unless opener[:active]
+        add_inline(:text, "]")
+        remove_delimiter(opener)
+        return true
+      end
+
+      is_image = opener[:cc] == CHARCODE_EXCLAM
+      matched = false
+      title = ""
+      dest = ""
+      reflabel = ""
+
+      if peek == CHARCODE_LEFTPAREN
+        @char_index += 1
+
+        if spnl &&
+            (dest = parse_link_destination) &&
+            spnl &&
+            REGEX_WHITESPACECHARACTER.match(@node.strings[@line_index][@char_index - 1]) &&
+            (title = parse_link_title || true) &&
+            spnl &&
+            peek == CHARCODE_RIGHTPAREN
+          @char_index += 1
+          matched = true
+        end
+      else
+        savepos = @char_index
+        spnl
+        before_label = @char_index
+        n = parse_link_label
+        reflabel = if n == 0 || n == 2
+                     @node.strings[@line_index][opener[:index]..startpos]
+                   else
+                     @node.strings[@line_index][before_label..before_label+n]
+                   end
+        @char_index = savepos if n == 0
+
+
+      end
     end
 
     def parse_entity
@@ -208,7 +312,7 @@ module RubyCoMa
             break if opener[:cc] == closer[:cc] && opener[:can_open]
             opener = opener[:previous]
           end
-          unless opener.nil? || opener == stack_bottom
+          if opener != nil && opener != stack_bottom
             if closer[:numdelims] < 3 || opener[:numdelims] < 3
               use_delims = closer[:numdelims] <= opener[:numdelims] ? closer[:numdelims] : opener[:numdelims]
             else
@@ -224,9 +328,41 @@ module RubyCoMa
             opener_inl.content = opener_inl.content[0..opener_inl.content.length - use_delims]
             closer_inl.content = closer_inl.content[0..closer_inl.content.length - use_delims]
 
-            emph = Inline.new()
+            emph = Inline.new((use_delims == 1) ? :emph : :strong)
+
+            tmp = opener_inl.next
+            until tmp.nil? || tmp == closer_inl
+              nxt = tmp.next
+              @node.remove_inline(tmp)
+              emph.add_child(tmp)
+              tmp = nxt
+            end
+
+            opener_inl.insert(emph)
+
+            tempstack = closer[:previous]
+            until tempstack.nil? || tempstack == opener
+              nextstack = tempstack[:previous]
+              remove_delimiter(tempstack)
+              tempstack = nextstack
+            end
+
+            if opener[:numdelims] == 0
+              @node.remove_inline(closer_inl)
+              tempstack = closer[:next]
+              remove_delimiter(closer)
+              closer = tempstack
+            end
+          else
+            closer = closer[:next]
           end
+        else
+          closer = closer[:next]
         end
+      end
+
+      until @delimiters == stack_bottom
+        remove_delimiter(@delimiters)
       end
     end
   end
