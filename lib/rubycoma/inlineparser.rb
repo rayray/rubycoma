@@ -23,26 +23,46 @@ module RubyCoMa
     CHARCODE_UNDERSCORE     = 95
     CHARCODE_NEWLINE        = 10
 
-    STRINGREGEX_ESCAPABLE   = '[!"#$%&\'()*+,./:;<=>?@[\\\\\\]^_`{|}~-]'
-    STRINGREGEX_ESCAPED_CHAR= '\\\\' << STRINGREGEX_ESCAPABLE
-    STRINGREGEX_REG_CHAR    = '[^\\\\()\\x00-\\x20]'
-    STRINGREGEX_IN_PARENS_NOSP = '\\((' << STRINGREGEX_REG_CHAR << '|' << STRINGREGEX_ESCAPED_CHAR << ')*\\)'
+    STRINGREGEX_ESCAPABLE           = '[!"#$%&\'()*+,./:;<=>?@[\\\\\\]^_`{|}~-]'
+    STRINGREGEX_ESCAPED_CHAR        = '\\\\' << STRINGREGEX_ESCAPABLE
+    STRINGREGEX_REG_CHAR            = '[^\\\\()\\x00-\\x20]'
+    STRINGREGEX_IN_PARENS_NOSP      = '\\((' << STRINGREGEX_REG_CHAR << '|' << STRINGREGEX_ESCAPED_CHAR << ')*\\)'
+    STRINGREGEX_TAGNAME             = '[A-Za-z][A-Za-z0-9]*'
+    STRINGREGEX_ATTRIBUTENAME       = '[a-zA-Z_:][a-zA-Z0-9:._-]*'
+    STRINGREGEX_UNQUOTEDVALUE       = '[^"\'=<>`\\x00-\\x20]+'
+    STRINGREGEX_SINGLEQUOTEDVALUE   = '\'[^\']*\''
+    STRINGREGEX_DOUBLEQUOTEDVALUE   = '"[^\"]*"'
+    STRINGREGEX_ATTRIBUTEVALUE      = '(?:' << STRINGREGEX_UNQUOTEDVALUE << '|' << STRINGREGEX_SINGLEQUOTEDVALUE << '|' << STRINGREGEX_DOUBLEQUOTEDVALUE << ')'
+    STRINGREGEX_ATTRIBUTEVALUESPEC  = '(?:' << '\s*=' << '\s*' << STRINGREGEX_ATTRIBUTEVALUE << ')'
+    STRINGREGEX_ATTRIBUTE           = '(?:' << '\s+' << STRINGREGEX_ATTRIBUTENAME << STRINGREGEX_ATTRIBUTEVALUESPEC << '?)'
+    STRINGREGEX_OPENTAG             = '<' << STRINGREGEX_TAGNAME << STRINGREGEX_ATTRIBUTE << '*' << '\s*/?>'
+    STRINGREGEX_CLOSETAG            = '</' << STRINGREGEX_TAGNAME << '\s*[>]'
+    STRINGREGEX_HTMLCOMMENT         = '<!---->|<!--(?:-?[^>-])(?:-?[^-])*-->'
+    STRINGREGEX_PROCINSTRUCTION     = '[<][?].*?[?][>]'
+    STRINGREGEX_DECLARATION         = '<![A-Z]+' << '\s+[^>]*>'
+    STRINGREGEX_CDATA               = "<!\\[CDATA\\[[\\s\\S]*?\\]\\]>"
+    STRINGREGEX_HTMLTAG             = '(?:' << STRINGREGEX_OPENTAG << '|' << STRINGREGEX_CLOSETAG << '|' << STRINGREGEX_HTMLCOMMENT << '|' << STRINGREGEX_PROCINSTRUCTION << '|' << STRINGREGEX_DECLARATION << '|' << STRINGREGEX_CDATA << ')'
 
-    REGEX_NONSPECIALCHARS   = /^[^\n`\[\]\\!<&*_]+/m
-    REGEX_ENTITY            = /^&(?:#x[a-f0-9]{1,8}|#[0-9]{1,8}|[a-z][a-z0-9]{1,31});/
-    REGEX_WHITESPACECHARACTER  = /^\s/
-    REGEX_WHITESPACE        = /^\s+/
-    REGEX_PUNCTUATION       = /^[\u2000-\u206F\u2E00-\u2E7F\\'!"#\$%&\(\)\*\+,\-\.\/:;<=>\?@\[\]\^_`\{\|\}~]/
-    REGEX_ESCAPABLE         = Regexp.new('^' << STRINGREGEX_ESCAPABLE)
-    REGEX_SPACES            = /^ */
-    REGEX_LINKDESTBRACES    = Regexp.new('^(?:[<](?:[^<>\\n\\\\\\x00]' << '|' << STRINGREGEX_ESCAPED_CHAR << '|' << '\\\\)*[>])')
-    REGEX_LINKDEST          = Regexp.new('^(?:' << STRINGREGEX_REG_CHAR << '+|' << STRINGREGEX_ESCAPED_CHAR << '|' << STRINGREGEX_IN_PARENS_NOSP << ')*')
-    REGEX_LINKTITLE         = Regexp.new('^(?:"(' << STRINGREGEX_ESCAPED_CHAR << '|[^"\\x00])*"' <<
+    REGEX_NONSPECIALCHARS       = /^[^\n`\[\]\\!<&*_]+/m
+    REGEX_ENTITY                = /^&(?:#x[a-f0-9]{1,8}|#[0-9]{1,8}|[a-z][a-z0-9]{1,31});/
+    REGEX_WHITESPACECHARACTER   = /^\s/
+    REGEX_WHITESPACE            = /^\s+/
+    REGEX_PUNCTUATION           = /^[\u2000-\u206F\u2E00-\u2E7F\\'!"#\$%&\(\)\*\+,\-\.\/:;<=>\?@\[\]\^_`\{\|\}~]/
+    REGEX_ESCAPABLE             = Regexp.new('^' << STRINGREGEX_ESCAPABLE)
+    REGEX_SPACES                = /^ */
+    REGEX_LINKDESTBRACES        = Regexp.new('^(?:[<](?:[^<>\\n\\\\\\x00]' << '|' << STRINGREGEX_ESCAPED_CHAR << '|' << '\\\\)*[>])')
+    REGEX_LINKDEST              = Regexp.new('^(?:' << STRINGREGEX_REG_CHAR << '+|' << STRINGREGEX_ESCAPED_CHAR << '|' << STRINGREGEX_IN_PARENS_NOSP << ')*')
+    REGEX_LINKTITLE             = Regexp.new('^(?:"(' << STRINGREGEX_ESCAPED_CHAR << '|[^"\\x00])*"' <<
                                              '|' <<
                                              '\'(' << STRINGREGEX_ESCAPED_CHAR << '|[^\'\\x00])*\'' <<
                                              '|' <<
                                              '\\((' << STRINGREGEX_ESCAPED_CHAR << '|[^)\\x00])*\\))')
-    REGEX_LINKLABEL         = /^\[(?:[^\\\[\]]|\\[\[\]]){0,1000}\]/
+    REGEX_LINKLABEL             = /^\[(?:[^\\\[\]]|\\[\[\]]){0,1000}\]/
+    REGEX_TICKSHERE             = /^`+/
+    REGEX_TICKS                 = /`+/
+    REGEX_EMAILAUTOLINK         = /^<([a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)>/
+    REGEX_AUTOLINK              = /^<(?:coap|doi|javascript|aaa|aaas|about|acap|cap|cid|crid|data|dav|dict|dns|file|ftp|geo|go|gopher|h323|http|https|iax|icap|im|imap|info|ipp|iris|iris.beep|iris.xpc|iris.xpcs|iris.lwz|ldap|mailto|mid|msrp|msrps|mtqp|mupdate|news|nfs|ni|nih|nntp|opaquelocktoken|pop|pres|rtsp|service|session|shttp|sieve|sip|sips|sms|snmp|soap.beep|soap.beeps|tag|tel|telnet|tftp|thismessage|tn3270|tip|tv|urn|vemmi|ws|wss|xcon|xcon-userid|xmlrpc.beep|xmlrpc.beeps|xmpp|z39.50r|z39.50s|adiumxtra|afp|afs|aim|apt|attachment|aw|beshare|bitcoin|bolo|callto|chrome|chrome-extension|com-eventbrite-attendee|content|cvs|dlna-playsingle|dlna-playcontainer|dtn|dvb|ed2k|facetime|feed|finger|fish|gg|git|gizmoproject|gtalk|hcp|icon|ipn|irc|irc6|ircs|itms|jar|jms|keyparc|lastfm|ldaps|magnet|maps|market|message|mms|ms-help|msnim|mumble|mvn|notes|oid|palm|paparazzi|platform|proxy|psyc|query|res|resource|rmi|rsync|rtmp|secondlife|sftp|sgn|skype|smb|soldat|spotify|ssh|steam|svn|teamspeak|things|udp|unreal|ut2004|ventrilo|view-source|webcal|wtai|wyciwyg|xfire|xri|ymsgr):[^<>\x00-\x20]*>/i
+    REGEX_HTMLTAG               = Regexp.new('^' << STRINGREGEX_HTMLTAG)
 
     def initialize
       @char_index = 0
@@ -131,6 +151,50 @@ module RubyCoMa
         add_inline(:text, '\\')
       end
       true
+    end
+
+    def parse_backticks
+      ticks = match(REGEX_TICKSHERE)
+      return false if ticks.nil?
+      after_open_ticks = @char_index
+      matched = match(REGEX_TICKS)
+      until matched.nil?
+        if matched == ticks
+          add_inline(:code, @node.strings[@line_index][after_open_ticks..(@char_index - ticks.length)])
+          return true
+        end
+      end
+
+      @char_index = after_open_ticks
+      add_inline(:text, ticks)
+      true
+    end
+
+    def parse_autolink
+      if m = match(REGEX_EMAILAUTOLINK)
+        dest = m[1..-1]
+        inl = Inline.new(:link)
+        inl.destination = 'mailto:' << dest
+        inl.title = ''
+        inl.add_child(Inline.new(:text, dest))
+        @node.inlines.push(inl)
+        return true
+      end
+
+      if m = match(REGEX_AUTOLINK)
+        dest = m[1..-1]
+        inl = Inline.new(:link)
+        inl.destination = dest
+        inl.title = ''
+        inl.add_child(Inline.new(:text, dest))
+        @node.inlines.push(inl)
+        return true
+      end
+      false
+    end
+
+    def parse_html_tag
+      m = match(REGEX_HT)
     end
 
     def parse_link_destination
