@@ -1,5 +1,6 @@
 module RubyCoMa
   require_relative '../rubycoma/nodes'
+  require_relative '../rubycoma/inlineparser'
 
   class Parser
     include Nodes
@@ -40,19 +41,23 @@ module RubyCoMa
         List => {
             :continue => proc {true},
             :finalize => proc { |parser, node|
-              node.children.each_with_index{ |item, index|
-                if defined? item.strings && item.strings.last == '' && index < node.children.count
+              item = node.first_child
+              until item.nil?
+                if defined? item.strings && item.strings.last == '' && item.next
                   node.is_tight = false
                   break
                 end
 
-                item.children.each_with_index { |subitem, subindex|
-                  if subitem.strings.last == '' && (index < node.children.count || subindex < item.children.count)
+                subitem = item.first_child
+                until subitem.nil?
+                  if subitem.strings.last == '' && item.next && subitem.next
                     node.is_tight = false
                     break
                   end
-                }
-              }
+                  subitem = subitem.next
+                end
+                item = item.next
+              end
             },
             :start    => proc {false}
         },
@@ -284,8 +289,35 @@ module RubyCoMa
       until @current_block.nil?
         finalize_node(@current_block)
       end
+      parse_inlines(@doc)
       puts @doc.to_s
       @doc
+    end
+
+    def parse_inlines(block)
+      current = block
+      inline_parser = InlineParser.new
+      until current.nil?
+
+        if current.class < Leaf
+          if current.class == Paragraph || current.class == Header
+            inline_parser.parse_node(current)
+          end
+
+          current = if current.next
+                      current.next
+                    else
+                      current.parent
+                    end
+        elsif current.class < Container
+          if current.children.nil?
+            current = current.parent
+          else
+            current = current.first_child
+          end
+        end
+
+      end
     end
 
     def incorporate_line(line)
