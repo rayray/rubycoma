@@ -51,7 +51,7 @@ module Nodes
     attr_accessor :title
 
     def initialize(style, content = nil)
-      super
+      super()
       @style = style
       @content = content
       @attributes = Hash.new
@@ -77,7 +77,7 @@ module Nodes
     end
   end
 
-  class Block
+  class Block < DLLNode
     attr_accessor :parent
     attr_accessor :open
 
@@ -186,7 +186,7 @@ module Nodes
   class Header < Leaf
     attr_accessor :level
     def initialize(l)
-      super
+      super()
       @level = l
     end
     def accepts_lines?; false; end
@@ -195,19 +195,34 @@ module Nodes
 
   class Container < Block
     attr_reader :children
+    attr_reader :first_child
 
     def initialize
-      super
-      @children = Array.new
+      super()
+      @children, @first_child = nil, nil
     end
 
     def add_child(new_block)
       new_block.parent = self
-      @children.push(new_block)
+      if @children.nil?
+        @first_child = new_block
+      else
+        @children.insert(new_block)
+      end
+      @children = new_block
     end
 
     def remove_child(block_to_delete)
-      @children.delete(block_to_delete)
+      if block_to_delete == @first_child
+        @first_child = block_to_delete.next
+      end
+
+      if block_to_delete == @children
+        @children = @children.prev
+      end
+
+      block_to_delete.parent = nil
+      block_to_delete.remove
     end
 
     def can_contain?(block)
@@ -229,7 +244,7 @@ module Nodes
 
     def can_contain?(block); block.class == ListItem; end;
     def initialize(ordered)
-      super
+      super()
       @is_tight = true
       @is_ordered = ordered
     end
