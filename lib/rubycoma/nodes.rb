@@ -97,7 +97,9 @@ module Nodes
       str << ' ' * var_indent << "class: " << self.class.name << "\n"
 
       self.instance_variables.each { |var|
-        next if var == :@parent
+        if var == :@parent || var == :@next || var == :@prev
+          next
+        end
         value = instance_variable_get(var)
 
         if value.class == Array && value.count > 0

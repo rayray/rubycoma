@@ -23,7 +23,7 @@ module RubyCoMa
     CHARCODE_UNDERSCORE     = 95
     CHARCODE_NEWLINE        = 10
 
-    STRINGREGEX_ESCAPABLE           = '[!"#$%&\'()*+,./:;<=>?@[\\\\\\]^_`{|}~-]'
+    STRINGREGEX_ESCAPABLE           = '[!"#$%&\'()*+,./\\:;<=>?@\[\]^_`{|}~-]'
     STRINGREGEX_ESCAPED_CHAR        = '\\\\' << STRINGREGEX_ESCAPABLE
     STRINGREGEX_REG_CHAR            = '[^\\\\()\\x00-\\x20]'
     STRINGREGEX_IN_PARENS_NOSP      = '\\((' << STRINGREGEX_REG_CHAR << '|' << STRINGREGEX_ESCAPED_CHAR << ')*\\)'
@@ -67,8 +67,6 @@ module RubyCoMa
     REGEX_MAIN                  = /^[^\n`\[\]\\!<&*_'"]+/m
 
     def initialize
-      @char_index = 0
-      @line_index = 0
       @delimiters = nil
     end
 
@@ -79,7 +77,7 @@ module RubyCoMa
         @char_index = 0
         return CHARCODE_NEWLINE
       end
-      @node[@line_index][@char_index].ord
+      @node.strings[@line_index][@char_index].ord
     end
 
     # if a match is found, advance the current char position
@@ -102,12 +100,15 @@ module RubyCoMa
 
     def add_inline(type, string = nil)
       inl = Inline.new(type, string)
-      @node.inlines.push(inl)
+      @node.add_inline(inl)
       inl
     end
 
     def parse_node(node)
+      puts "Parsing #{node}"
       @node = node
+      @line_index = 0
+      @char_index = 0
       c = peek
       until c == -1
         inline_added = case c
