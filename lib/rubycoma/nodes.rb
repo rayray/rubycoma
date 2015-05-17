@@ -72,6 +72,13 @@ module Nodes
       str = ' ' * indent << "{\n"
       str << ' ' * (indent+2) << "style: #{@style}\n"
       str << ' ' * (indent+2) << "content: #{@content}\n"
+      if @children.count > 0
+        str << ' ' * (indent+2) << "children: [\n"
+        @children.each { |child|
+          str << ' ' * (indent+4) << child
+        }
+        str << ' ' * (indent+2) << "]\n"
+      end
       str << ' ' * indent << "}\n"
       str
     end
@@ -97,18 +104,23 @@ module Nodes
       str << ' ' * var_indent << "class: " << self.class.name << "\n"
 
       self.instance_variables.each { |var|
-        if var == :@parent || var == :@next || var == :@prev
+        if var == :@parent || var == :@next || var == :@prev || var == :@children
           next
         end
         value = instance_variable_get(var)
 
-        if value.class == Array && value.count > 0
+        if var == :@first_child && value
+          str << ' ' * var_indent << "children: [\n"
+          current = value
+          until current.nil?
+            str << current.to_s(arr_indent)
+            current = current.next
+          end
+          str << ' ' * var_indent << "]\n"
+        elsif value.class == Array && value.count > 0
           str << ' ' * var_indent << "#{var}: [\n"
           value.each { |obj|
-
-            if obj.class <= Block
-              str << obj.to_s(arr_indent)
-            elsif obj.class == String
+            if obj.class == String
               str << ' ' * arr_indent << "\"#{obj.to_s}\"\n"
             end
           }
@@ -139,7 +151,7 @@ module Nodes
     def initialize
       super
       @strings = Array.new
-      @inlines, @inlines_head = nil, nil
+      @inlines, @first_inline = nil, nil
     end
 
     def accepts_lines?
@@ -151,17 +163,24 @@ module Nodes
     end
 
     def add_inline(inline)
-      unless @inlines.nil?
+      inline.parent = self
+      if @inlines.nil?
+        @first_inline = inline
+      else
         @inlines.insert(inline)
       end
       @inlines = inline
     end
 
     def remove_inline(inline)
-      if inline == @inlines
-        @inlines == @inlines.prev
+      if inline == @first_inline
+        @first_inline = inline.next
       end
 
+      if inline == @inlines
+        @inlines = @inlines.prev
+      end
+      inline.parent = nil
       inline.remove
     end
   end
