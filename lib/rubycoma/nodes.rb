@@ -3,10 +3,16 @@ module Nodes
   class DLLNode
     attr_accessor :next
     attr_accessor :prev
+    attr_accessor :first_child
+    attr_accessor :last_child
+    attr_accessor :parent
 
     def initialize
       @prev = nil
       @next = nil
+      @parent = nil
+      @first_child = nil
+      @last_child = nil
     end
 
     def remove
@@ -30,6 +36,30 @@ module Nodes
       @next = node
       node.prev = self
     end
+
+    def add_child(child)
+      child.parent = self
+
+      if @last_child.nil?
+        @first_child = child
+      else
+        @last_child.insert(child)
+      end
+
+      @last_child = child
+    end
+
+    def remove_child(child)
+      if child == @first_child
+        @first_child = child.next
+      end
+
+      if child == @last_child
+        @last_child = @last_child.prev
+      end
+      child.parent = nil
+      child.remove
+    end
   end
 
   class Inline < DLLNode
@@ -44,8 +74,6 @@ module Nodes
 
     attr_accessor :style
     attr_accessor :content
-    attr_accessor :children
-    attr_accessor :parent
 
     attr_accessor :destination
     attr_accessor :title
@@ -55,17 +83,7 @@ module Nodes
       @style = style
       @content = content
       @attributes = Hash.new
-      @children = Array.new
       @parent = nil
-    end
-
-    def add_child(child)
-      child.parent = self
-      @children.push(child)
-    end
-
-    def remove_child(block_to_delete)
-      @children.delete(block_to_delete)
     end
 
     def to_s(indent = 0)
@@ -89,7 +107,7 @@ module Nodes
     attr_accessor :open
 
     def initialize
-      @parent = nil
+      super()
       @open = true
     end
 
@@ -104,7 +122,7 @@ module Nodes
       str << ' ' * var_indent << "class: " << self.class.name << "\n"
 
       self.instance_variables.each { |var|
-        if var == :@parent || var == :@next || var == :@prev || var == :@children
+        if var == :@parent || var == :@next || var == :@prev
           next
         end
         value = instance_variable_get(var)
@@ -146,12 +164,10 @@ module Nodes
 
   class Leaf < Block
     attr_accessor :strings
-    attr_accessor :inlines
 
     def initialize
-      super
+      super()
       @strings = Array.new
-      @inlines, @first_inline = nil, nil
     end
 
     def accepts_lines?
@@ -160,28 +176,6 @@ module Nodes
 
     def can_contain?(block)
       false
-    end
-
-    def add_inline(inline)
-      inline.parent = self
-      if @inlines.nil?
-        @first_inline = inline
-      else
-        @inlines.insert(inline)
-      end
-      @inlines = inline
-    end
-
-    def remove_inline(inline)
-      if inline == @first_inline
-        @first_inline = inline.next
-      end
-
-      if inline == @inlines
-        @inlines = @inlines.prev
-      end
-      inline.parent = nil
-      inline.remove
     end
   end
 
@@ -215,35 +209,8 @@ module Nodes
 
 
   class Container < Block
-    attr_reader :children
-    attr_reader :first_child
-
     def initialize
       super()
-      @children, @first_child = nil, nil
-    end
-
-    def add_child(new_block)
-      new_block.parent = self
-      if @children.nil?
-        @first_child = new_block
-      else
-        @children.insert(new_block)
-      end
-      @children = new_block
-    end
-
-    def remove_child(block_to_delete)
-      if block_to_delete == @first_child
-        @first_child = block_to_delete.next
-      end
-
-      if block_to_delete == @children
-        @children = @children.prev
-      end
-
-      block_to_delete.parent = nil
-      block_to_delete.remove
     end
 
     def can_contain?(block)
@@ -263,7 +230,7 @@ module Nodes
     attr_accessor :marker_offset
     attr_accessor :padding
 
-    def can_contain?(block); block.class == ListItem; end;
+    def can_contain?(block); block.class == ListItem; end
     def initialize(ordered)
       super()
       @is_tight = true

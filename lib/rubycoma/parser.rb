@@ -289,7 +289,7 @@ module RubyCoMa
       until @current_block.nil?
         finalize_node(@current_block)
       end
-      parse_inlines(@doc)
+      #parse_inlines(@doc)
       puts @doc.to_s
       @doc
     end
@@ -310,7 +310,7 @@ module RubyCoMa
                       current.parent
                     end
         elsif current.class < Container
-          if current.children.nil?
+          if current.first_child.nil?
             current = current.parent
           else
             current = current.first_child

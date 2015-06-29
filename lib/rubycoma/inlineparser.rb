@@ -100,7 +100,7 @@ module RubyCoMa
 
     def add_inline(type, string = nil)
       inl = Inline.new(type, string)
-      @node.add_inline(inl)
+      @node.add_child(inl)
       inl
     end
 
@@ -157,7 +157,7 @@ module RubyCoMa
       @char_index += 1
 
       node = Inline.new(:text, '[')
-      @node.add_inline(node)
+      @node.add_child(node)
 
       add_delimiter({:cc => CHARCODE_LEFTBRACKET,
                      :numdelims => 1,
@@ -177,7 +177,7 @@ module RubyCoMa
         @char_index += 1
 
         node = Inline.new(:text, '![')
-        @node.add_inline(node)
+        @node.add_child(node)
 
         add_delimiter({:cc => CHARCODE_EXCLAM,
                        :numdelims => 1,
@@ -230,7 +230,7 @@ module RubyCoMa
         inl.destination = 'mailto:' << dest
         inl.title = ''
         inl.add_child(Inline.new(:text, dest))
-        @node.inlines.push(inl)
+        @node.add_child(inl)
         return true
       end
 
@@ -240,7 +240,7 @@ module RubyCoMa
         inl.destination = dest
         inl.title = ''
         inl.add_child(Inline.new(:text, dest))
-        @node.inlines.push(inl)
+        @node.add_child(inl)
         return true
       end
       false
@@ -339,14 +339,14 @@ module RubyCoMa
         tmp = opener[:inline_node].next
         until tmp.nil?
           nxt = tmp.next
-          @node.remove_inline(tmp)
+          @node.remove_child(tmp)
           inl.add_child(tmp)
           tmp = nxt
         end
 
         add_inline(inl)
         process_emphasis(opener[:previous])
-        @node.remove_inline(opener[:inline_node])
+        @node.remove_child(opener[:inline_node])
 
         unless is_image
           opener = @delimiters
@@ -476,7 +476,6 @@ module RubyCoMa
 
             opener_inl = opener[:inline_node]
             closer_inl = closer[:inline_node]
-            opener_index = @node.inlines.index(opener_inl)
             opener[:numdelims] -= use_delims
             closer[:numdelims] -= use_delims
 
@@ -488,7 +487,7 @@ module RubyCoMa
             tmp = opener_inl.next
             until tmp.nil? || tmp == closer_inl
               nxt = tmp.next
-              @node.remove_inline(tmp)
+              @node.remove_child(tmp)
               emph.add_child(tmp)
               tmp = nxt
             end
@@ -503,7 +502,7 @@ module RubyCoMa
             end
 
             if opener[:numdelims] == 0
-              @node.remove_inline(closer_inl)
+              @node.remove_child(closer_inl)
               tempstack = closer[:next]
               remove_delimiter(closer)
               closer = tempstack
