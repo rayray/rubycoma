@@ -238,7 +238,9 @@ module RubyCoMa
               if REGEX_HTMLOPEN.match(parser.current_line[parser.next_nonspace..-1])
                 b = HTML.new
                 parser.add_child(parser.current_block, b)
+                next true
               end
+              false
             }
         },
         Paragraph => {
