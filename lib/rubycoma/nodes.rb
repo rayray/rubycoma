@@ -68,9 +68,12 @@ module Nodes
     :emphasized
     :strong
     :strikethrough
-    :code_span
+    :code_inline
     :link
     :image
+    :softbreak
+    :hardbreak
+    :html_inline
 
     attr_accessor :style
     attr_accessor :content
@@ -86,17 +89,45 @@ module Nodes
       @parent = nil
     end
 
+    def is_container?
+      @style == :strong || @style == :emphasized || @style == :link || @style == :image
+    end
+
     def to_s(indent = 0)
-      str = ' ' * indent << "{\n"
-      str << ' ' * (indent+2) << "style: #{@style}\n"
-      str << ' ' * (indent+2) << "content: #{@content}\n"
-      if @children.count > 0
-        str << ' ' * (indent+2) << "children: [\n"
-        @children.each { |child|
-          str << ' ' * (indent+4) << child
-        }
-        str << ' ' * (indent+2) << "]\n"
-      end
+      var_indent = indent + 2
+      arr_indent = indent + 4
+      str =  ' ' * indent << "{\n"
+
+      str << ' ' * var_indent << "style: #{@style}\n"
+
+      self.instance_variables.each { |var|
+        if var == :@parent || var == :@next || var == :@prev || var  == :@last_child || var == :@style
+          next
+        end
+        value = instance_variable_get(var)
+
+        if var == :@first_child
+          next if value.nil?
+          str << ' ' * var_indent << "children: [\n"
+          current = value
+          until current.nil?
+            str << current.to_s(arr_indent)
+            current = current.next
+          end
+          str << ' ' * var_indent << "]\n"
+        elsif value.class == Array && value.count > 0
+          str << ' ' * var_indent << "#{var}: [\n"
+          value.each { |obj|
+            if obj.class == String
+              str << ' ' * arr_indent << "\"#{obj.to_s}\"\n"
+            end
+          }
+          str << ' ' * var_indent << "]\n"
+        else
+          str << ' ' * var_indent << "#{var}: #{value}\n"
+        end
+      }
+
       str << ' ' * indent << "}\n"
       str
     end
@@ -122,12 +153,13 @@ module Nodes
       str << ' ' * var_indent << "class: " << self.class.name << "\n"
 
       self.instance_variables.each { |var|
-        if var == :@parent || var == :@next || var == :@prev
+        if var == :@parent || var == :@next || var == :@prev || var  == :@last_child
           next
         end
         value = instance_variable_get(var)
 
-        if var == :@first_child && value
+        if var == :@first_child
+          next if value.nil?
           str << ' ' * var_indent << "children: [\n"
           current = value
           until current.nil?
@@ -216,6 +248,10 @@ module Nodes
     def can_contain?(block)
       block.class != ListItem
     end
+
+    def is_container?
+      true
+    end
   end
 
   class Document < Container; end
@@ -257,5 +293,45 @@ module Nodes
     def can_contain?(block)
       block.class != ListItem
     end
+  end
+
+  class NodeWalker
+    attr_accessor :root
+    attr_accessor :current
+    attr_accessor :entering
+
+    def initialize(node)
+      @root = node
+      @current = node
+      @entering = true
+    end
+
+    def next
+      return nil if @current.nil?
+
+      cur = @current
+
+      is_container = (@current.class < Container || (@current.class < Inline && @current.is_container?))
+
+      if @entering && is_container
+        if cur.first_child
+          @current = cur.first_child
+          @entering = true
+        else
+          @entering = false
+        end
+      elsif cur == @root
+        @current = nil
+      elsif cur.next.nil?
+        @current = cur.parent
+        @entering = false
+      else
+        @current = cur.next
+        @entering = true
+      end
+
+      cur
+    end
+
   end
 end
