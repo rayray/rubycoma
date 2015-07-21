@@ -11,19 +11,21 @@ module RubyCoMa
       @last_out
     end
 
-    def out(strings)
-      if strings.to_a.empty?
-        STDERR.puts "WARNING: strings was empty."
-        return
-      end
+    def out(s)
+      str = if s.instance_of? Array
+              s.join('\n')
+            elsif s.instance_of? String
+              s
+            else
+              return
+            end
 
-      s = strings.join('\n')
       @buffer << if @disable_tags > 0
-                   s.gsub(REGEX_HTMLTAG, '')
+                   str.gsub(REGEX_HTMLTAG, '')
                  else
-                   s
+                   str
                  end
-      @last_out = s
+      @last_out = str
     end
 
     def cr
@@ -60,21 +62,111 @@ module RubyCoMa
         c = current.class
 
         if c == Inline
-          case
-            when current.style == :code_span
-              out(create_tag('code') << current.strings.join('\n') << create_tag('/code'))
-            when current.style == :html_span
-              out(current.strings)
+          case current.style
+            when :code_inline
+              out(create_tag('code') << current.content << create_tag('/code'))
+            when :html_inline
+              out(current.content)
+            when :text
+              out(current.content)
+            when :softbreak
+              out('\n')
+            when :hardbreak
+              out(create_tag('br', nil, true))
+            when :emphasized
+              tag = if walker.entering
+                      'em'
+                    else
+                      '/em'
+                    end
+              out(create_tag(tag))
+            when :strong
+              tag = if walker.entering
+                      'strong'
+                    else
+                      'strong'
+                    end
+              out(create_tag(tag))
+            when :link
+              if walker.entering
+                attrs << ['href', current.destination]
+                attrs << ['title', current.title] if current.title
+                out(create_tag('a', attrs))
+              else
+                out(create_tag('/a'))
+              end
+            when :image
+              if walker.entering
+                if @disable_tags == 0
+                  out('<img src="' << current.destination << '" alt="')
+                end
+                @disable_tags += 1
+              else
+                @disable_tags -= 1
+                if @disable_tags == 0
+                  if current.title
+                    out('" title="' << current.title)
+                  end
+                  out('" />')
+                end
+              end
             else
-              abort("Unknown inline type: #{current.style}")
+              puts "Unknown inline type: #{current.style}"
           end
 
         elsif c <= Block
           case
             when c == HTML
-
+              cr
+              out(current.strings)
+              cr
+            when c == BlockQuote
+                cr
+                out(create_tag((walker.entering) ? 'blockquote' : '/blockquote', attrs))
+                cr
             when c == Code
-
+              info_string = current.info_string
+              attrs << ['class', 'language-' << info_string] if info_string.length > 0
+              cr
+              out(create_tag('pre') << create_tag('code', attrs))
+              out(current.strings)
+              out(create_tag('/code') << create_tag('/pre'))
+              cr
+            when c == List
+              tagname = current.is_ordered ? 'ol' : 'ul'
+              if walker.entering
+                start = current.start
+                if start && start != 1
+                  attrs << ['start', "#{start}"]
+                end
+                cr
+                out(create_tag(tagname, attrs))
+                cr
+              else
+                cr
+                out(create_tag('/' << tagname))
+                cr
+              end
+            when c == ListItem
+              if walker.entering
+                out(create_tag('li', attrs))
+              else
+                out(create_tag('/li'))
+                cr
+              end
+            when c == Header
+              tagname = 'h' << current.level
+              if walker.entering
+                cr
+                out(create_tag(tagname, attrs))
+              else
+                out(create_tag('/' << tagname))
+                cr
+              end
+            when c == HorizontalRule
+              cr
+              out(create_tag('hr', attrs, true))
+              cr
             when c == Paragraph
               grandparent = current.parent.parent
               unless grandparent && grandparent.class == List && grandparent.is_tight
@@ -86,8 +178,10 @@ module RubyCoMa
                   cr
                 end
               end
+            when c == Document
+              #break
             else
-              abort("Unknown node type: #{current.class}")
+              puts "Unknown node type: #{current.class}"
           end
         end
         current = walker.next
