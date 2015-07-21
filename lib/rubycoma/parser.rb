@@ -92,7 +92,9 @@ module RubyCoMa
               end
 
               list_node.padding = match[0].length
-              list_node.padding -= (spaces_after_marker + 1) unless spaces_after_marker.between?(1, 4) && match[0].length != ln.length
+              unless spaces_after_marker.between?(1, 4) && match[0].length != ln.length
+                list_node.padding -= (spaces_after_marker + 1)
+              end
               list_node.marker_offset = parser.indent
               parser.offset = parser.next_nonspace + list_node.padding
 
@@ -134,8 +136,9 @@ module RubyCoMa
         Header => {
             :continue => proc {false},
             :finalize => proc {},
-            :start    => proc { |parser, container|
-              if container.class == Paragraph && container.lines.count == 1 && match = REGEX_HEADERSETEXT.match(parser.current_line[parser.next_nonspace..-1])
+            :start    => proc { |parser|
+              container = parser.current_block
+              if container.class == Paragraph && container.strings.count == 1 && match = REGEX_HEADERSETEXT.match(parser.current_line[parser.next_nonspace..-1])
                 level = match[0][0] == '=' ? 1 : 2
                 h = Header.new(level)
                 h.strings.push(container.strings[0])
@@ -159,7 +162,7 @@ module RubyCoMa
             :continue => proc {false},
             :finalize => proc {},
             :start    => proc { |parser|
-              if REGEX_HORIZONTALRULE.match(parser.current_line[parser.next_nonspace..-1])
+              if parser.indent < 4 && REGEX_HORIZONTALRULE.match(parser.current_line[parser.next_nonspace..-1])
                 hr = HorizontalRule.new
                 parser.add_child(parser.current_block, hr)
                 parser.offset = parser.current_line.length
@@ -291,34 +294,22 @@ module RubyCoMa
       until @current_block.nil?
         finalize_node(@current_block)
       end
-      #parse_inlines(@doc)
+      parse_inlines(@doc)
       puts @doc.to_s
       @doc
     end
 
     def parse_inlines(block)
-      current = block
-      inline_parser = InlineParser.new
+      iparser = InlineParser.new
+      walker = NodeWalker.new(block)
+      current = walker.current
+
       until current.nil?
-
-        if current.class < Leaf
-          if current.class == Paragraph || current.class == Header
-            inline_parser.parse_node(current)
-          end
-
-          current = if current.next
-                      current.next
-                    else
-                      current.parent
-                    end
-        elsif current.class < Container
-          if current.first_child.nil?
-            current = current.parent
-          else
-            current = current.first_child
-          end
+        nodetype = current.class
+        if !walker.entering && (nodetype == Paragraph || nodetype == Header)
+          iparser.parse_node(current)
         end
-
+        current = walker.next
       end
     end
 

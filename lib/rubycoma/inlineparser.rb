@@ -71,9 +71,16 @@ module RubyCoMa
     end
 
     def peek
+      if @line_index == -1
+        return @line_index
+      end
+
       unless @char_index < @node.strings[@line_index].length
         @line_index += 1
-        return -1 if @line_index == @node.strings.count
+        if @line_index == @node.strings.count
+          @line_index = -1
+          return @line_index
+        end
         @char_index = 0
         return CHARCODE_NEWLINE
       end
@@ -105,7 +112,6 @@ module RubyCoMa
     end
 
     def parse_node(node)
-      puts "Parsing #{node}"
       @node = node
       @line_index = 0
       @char_index = 0
@@ -143,7 +149,7 @@ module RubyCoMa
     end
 
     def handle_newline
-      lastc = @node.inlines
+      lastc = @node.last_child
       if lastc && lastc.style == :text
         sps = REGEX_FINALSPACE.match(lastc.content)[0].length
         add_inline(sps >= 2 ? :hardbreak : :softbreak)
@@ -377,7 +383,7 @@ module RubyCoMa
       return false if numdelims == 0
       startpos = @char_index
       @char_index += numdelims
-      inl = add_inline(:text, @node[@line_index][startpos..@char_index])
+      inl = add_inline(:text, @node.strings[@line_index][startpos..@char_index])
       add_delimiter({:cc => cc,
                      :numdelims => numdelims,
                      :inline_node => inl,

@@ -17,7 +17,7 @@ module RubyCoMa
             elsif s.instance_of? String
               s
             else
-              return
+              ''
             end
 
       @buffer << if @disable_tags > 0
@@ -55,7 +55,7 @@ module RubyCoMa
       walker = NodeWalker.new(block)
       attrs = []
 
-      current = walker.next
+      current = walker.current
 
       until current.nil?
 
@@ -114,7 +114,7 @@ module RubyCoMa
               puts "Unknown inline type: #{current.style}"
           end
 
-        elsif c <= Block
+        elsif c < Block
           case
             when c == HTML
               cr
@@ -186,6 +186,7 @@ module RubyCoMa
         end
         current = walker.next
       end
+      puts "HTML rendered: #{@buffer}"
       @buffer
     end
   end
