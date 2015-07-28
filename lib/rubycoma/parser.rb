@@ -61,6 +61,66 @@ module RubyCoMa
             },
             :start    => proc {false}
         },
+        BlockQuote => {
+            :continue => proc { |parser|
+              ln = parser.current_line
+              if (parser.indent <= 3 && parser.char_code_at(ln, parser.next_nonspace) == CHARCODE_GREATERTHAN)
+                parser.offset = parser.next_nonspace + 1
+                parser.offset += 1 unless parser.char_code_at(ln, parser.offset) != CHARCODE_SPACE
+                next true
+              end
+              false
+            },
+            :finalize => proc {},
+            :start    => proc { |parser|
+              if parser.char_code_at(parser.current_line, parser.next_nonspace) == CHARCODE_GREATERTHAN
+                parser.offset = parser.next_nonspace + 1
+                parser.offset += 1 if parser.char_code_at(parser.current_line, parser.offset) == CHARCODE_SPACE
+                parser.add_child(parser.current_block, BlockQuote.new)
+                next true
+              end
+              false
+            }
+        },
+        Header => {
+            :continue => proc {false},
+            :finalize => proc {},
+            :start    => proc { |parser|
+              container = parser.current_block
+              if container.class == Paragraph && container.strings.count == 1 && match = REGEX_HEADERSETEXT.match(parser.current_line[parser.next_nonspace..-1])
+                level = match[0][0] == '=' ? 1 : 2
+                h = Header.new(level)
+                h.strings.push(container.strings[0])
+                parent = container.parent
+                parent.remove_child(container)
+                parent.add_child(h)
+                parser.current_block = h
+                parser.offset = parser.current_line.length
+                next true
+              elsif match = REGEX_HEADERATX.match(parser.current_line[parser.next_nonspace..-1])
+                parser.offset = parser.next_nonspace + match[0].length
+                h = Header.new(match[0].strip.length)
+                h.strings.push(parser.current_line[parser.offset..-1].gsub(/^ *#+ *$/, '').gsub(/ +#+ *$/, ''))
+                parser.add_child(parser.current_block, h)
+                parser.offset = parser.current_line.length
+                next true
+              end
+              false
+            }
+        },
+        HorizontalRule => {
+            :continue => proc {false},
+            :finalize => proc {},
+            :start    => proc { |parser|
+              if parser.indent < 4 && REGEX_HORIZONTALRULE.match(parser.current_line[parser.next_nonspace..-1])
+                hr = HorizontalRule.new
+                parser.add_child(parser.current_block, hr)
+                parser.offset = parser.current_line.length
+                next true
+              end
+              false
+            }
+        },
         ListItem => {
             :continue => proc { |parser, node|
               old_offset = parser.offset
@@ -112,65 +172,6 @@ module RubyCoMa
               true
             }
         },
-        BlockQuote => {
-            :continue => proc { |parser|
-              ln = parser.current_line
-              if (parser.indent <= 3 && parser.char_code_at(ln, parser.next_nonspace) == CHARCODE_GREATERTHAN)
-                parser.offset = parser.next_nonspace + 1
-                parser.offset += 1 unless parser.char_code_at(ln, parser.offset) != CHARCODE_SPACE
-                next true
-              end
-              false
-            },
-            :finalize => proc {},
-            :start    => proc { |parser|
-              if parser.char_code_at(parser.current_line, parser.next_nonspace) == CHARCODE_GREATERTHAN
-                parser.offset = parser.next_nonspace + 1
-                parser.offset += 1 if parser.char_code_at(parser.current_line, parser.offset) == CHARCODE_SPACE
-                parser.add_child(parser.current_block, BlockQuote.new)
-                next true
-              end
-              false
-            }
-        },
-        Header => {
-            :continue => proc {false},
-            :finalize => proc {},
-            :start    => proc { |parser|
-              container = parser.current_block
-              if container.class == Paragraph && container.strings.count == 1 && match = REGEX_HEADERSETEXT.match(parser.current_line[parser.next_nonspace..-1])
-                level = match[0][0] == '=' ? 1 : 2
-                h = Header.new(level)
-                h.strings.push(container.strings[0])
-                parent = container.parent
-                parent.remove_child(container)
-                parent.add_child(h)
-                parser.offset = parser.current_line.length
-                next true
-              elsif match = REGEX_HEADERATX.match(parser.current_line[parser.next_nonspace..-1])
-                parser.offset = parser.next_nonspace + match[0].length
-                h = Header.new(match[0].strip.length)
-                h.strings.push(parser.current_line[parser.offset..-1])
-                parser.add_child(parser.current_block, h)
-                parser.offset = parser.current_line.length
-                next true
-              end
-              false
-            }
-        },
-        HorizontalRule => {
-            :continue => proc {false},
-            :finalize => proc {},
-            :start    => proc { |parser|
-              if parser.indent < 4 && REGEX_HORIZONTALRULE.match(parser.current_line[parser.next_nonspace..-1])
-                hr = HorizontalRule.new
-                parser.add_child(parser.current_block, hr)
-                parser.offset = parser.current_line.length
-                next true
-              end
-              false
-            }
-        },
         Code => {
             :continue => proc { |parser, node|
               container = node
@@ -184,7 +185,7 @@ module RubyCoMa
                 next false if match && match[0].length >= container.fence_length
 
                 i = container.fence_offset
-                while i > 0 && char_code_at(ln, parser.offset) == CHARCODE_SPACE
+                while i > 0 && parser.char_code_at(ln, parser.offset) == CHARCODE_SPACE
                   parser.offset += 1
                   i -= 1
                 end
@@ -405,6 +406,7 @@ module RubyCoMa
     def find_next_nonspace
       line = @current_line
       match = /[^ \t\n]/.match(line[@offset..-1])
+      #puts "line len #{line.length} and line is #{line} and offset is #{@offset} and match is #{match} and doc is #{@doc}"
       if match.nil?
         @next_nonspace = line.length
         @on_blank_line = true

@@ -296,6 +296,7 @@ module RubyCoMa
 
       if opener.nil?
         add_inline(:text, "]")
+        return true
       end
 
       unless opener[:active]
