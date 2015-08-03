@@ -126,7 +126,7 @@ module RubyCoMa
                 cr
             when c == Code
               info_string = current.info_string
-              attrs << ['class', 'language-' << info_string] if info_string.length > 0
+              attrs << ['class', 'language-' << info_string] unless info_string.nil?
               cr
               out(create_tag('pre') << create_tag('code', attrs))
               out(current.strings)
