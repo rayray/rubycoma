@@ -1,6 +1,6 @@
 module RubyCoMa
   require_relative '../rubycoma/nodes'
-  require_relative '../rubycoma/inlineparser'
+  require_relative '../rubycoma/inline_parser'
 
   class Parser
     include Nodes
@@ -127,7 +127,7 @@ module RubyCoMa
               parser.offset = if parser.on_blank_line
                                 parser.next_nonspace
                               elsif parser.indent >= node.marker_offset + node.padding
-                                parser.offset += node.marker_offset + node.padding
+                                parser.offset + node.marker_offset + node.padding
                               else
                                 parser.offset
                               end
@@ -158,11 +158,11 @@ module RubyCoMa
               list_node.marker_offset = parser.indent
               parser.offset = parser.next_nonspace + list_node.padding
 
-              while (parser.current_block.class == Paragraph) ||
-                  (parser.current_block.class == ListItem && list_node.marker_offset < parser.current_block.padding) ||
-                  (parser.current_block.class == List && list_node.marker_offset < parser.current_block.marker_offset)
-                parser.finalize_node(parser.current_block)
-              end
+              # while (parser.current_block.class == Paragraph) ||
+              #     (parser.current_block.class == ListItem && list_node.marker_offset < parser.current_block.padding) ||
+              #     (parser.current_block.class == List && list_node.marker_offset < parser.current_block.marker_offset)
+              #   parser.finalize_node(parser.current_block)
+              # end
 
               if parser.current_block.class != List || !parser.current_block.matches?(list_node)
                 parser.add_child(parser.current_block, List.new(list_node.is_ordered))
