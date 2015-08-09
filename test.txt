@@ -1,7 +1,0 @@
-Hello.
-
-- item 1
-- item 2
-  1. subitem 1
-  2. subitem 2
-- item 3

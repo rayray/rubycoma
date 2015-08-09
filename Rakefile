@@ -72,7 +72,13 @@ namespace :test do
     parsed = Parser.new.parse_string(md)
     actual = HtmlRenderer.new.render_block(parsed)
     if actual != obj['html']
-      puts "\u274c Test #{obj['example']} failed.\n\tInput: #{obj['markdown']}\n\tOutput: #{actual}\n\tExpected: #{obj['html']}"
+      puts "\u274c Test #{obj['example']} failed."
+      print "  Input:     "
+      p obj['markdown']
+      print "  Output:    "
+      p actual
+      print "  Expected:  "
+      p obj['html']
     else
       puts "\u2705 Test #{obj['example']} passed."
     end
