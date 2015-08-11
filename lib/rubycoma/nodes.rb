@@ -303,6 +303,7 @@ module Nodes
     def initialize(node)
       @root = node
       @current = node
+      @next_entering = true
       @entering = true
     end
 
@@ -310,24 +311,25 @@ module Nodes
       return nil if @current.nil?
 
       cur = @current
+      @entering = @next_entering
 
-      is_container = (@current.class < Container || (@current.class < Inline && @current.is_container?))
+      is_container = (cur.instance_of?(Paragraph) || cur.is_a?(Container) || (cur.is_a?(Inline) && cur.is_container?))
 
       if @entering && is_container
         if cur.first_child
           @current = cur.first_child
-          @entering = true
+          @next_entering = true
         else
-          @entering = false
+          @next_entering = false
         end
       elsif cur == @root
         @current = nil
       elsif cur.next.nil?
         @current = cur.parent
-        @entering = false
+        @next_entering = false
       else
         @current = cur.next
-        @entering = true
+        @next_entering = true
       end
 
       cur
