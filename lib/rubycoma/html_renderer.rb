@@ -6,14 +6,14 @@ module RubyCoMa
     REGEX_HTMLTAG = /<[^>]*>/
 
     def initialize
-      @buffer = ''
+      @buffer = ""
       @disable_tags = 0
-      @last_out
+      @last_out = "\n"
     end
 
     def out(s)
       str = if s.instance_of? Array
-              s.join('\n')
+              s.join("\n")
             elsif s.instance_of? String
               s
             else
@@ -29,9 +29,9 @@ module RubyCoMa
     end
 
     def cr
-      if @last_out == '\n'
-        @buffer << '\n'
-        @last_out = '\n'
+      if @last_out != "\n"
+        @buffer << "\n"
+        @last_out = "\n"
       end
     end
 
@@ -55,7 +55,7 @@ module RubyCoMa
       walker = NodeWalker.new(block)
       attrs = []
 
-      current = walker.current
+      current = walker.next
 
       until current.nil?
 
@@ -70,7 +70,7 @@ module RubyCoMa
             when :text
               out(current.content)
             when :softbreak
-              out('\n')
+              out("\n")
             when :hardbreak
               out(create_tag('br', nil, true))
             when :emphasized
@@ -130,6 +130,7 @@ module RubyCoMa
               cr
               out(create_tag('pre') << create_tag('code', attrs))
               out(current.strings)
+              out("\n") unless current.is_fenced
               out(create_tag('/code') << create_tag('/pre'))
               cr
             when c == List

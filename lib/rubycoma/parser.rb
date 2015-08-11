@@ -8,8 +8,10 @@ module RubyCoMa
     attr_accessor :current_block
     attr_accessor :current_line
     attr_accessor :offset
+    attr_accessor :column
     attr_accessor :indent
     attr_accessor :next_nonspace
+    attr_accessor :next_nonspace_column
     attr_accessor :on_blank_line
     attr_accessor :last_line_blank
     attr_accessor :doc
@@ -17,6 +19,7 @@ module RubyCoMa
 
     CHARCODE_GREATERTHAN        = 62
     CHARCODE_SPACE              = 32
+    CHARCODE_TAB                = 9
     CHARCODE_NEWLINE            = 10
     CHARCODE_LEFTSQUAREBRACKET  = 91
 
@@ -43,14 +46,15 @@ module RubyCoMa
             :finalize => proc { |parser, node|
               item = node.first_child
               until item.nil?
-                if defined? item.strings && item.strings.last == '' && item.next
+                if defined?(item.strings) && item.strings.length > 0 && item.strings.last == '' && item.next
+                  puts "#{item.strings}"
                   node.is_tight = false
                   break
                 end
 
                 subitem = item.first_child
                 until subitem.nil?
-                  if subitem.strings.last == '' && item.next && subitem.next
+                  if defined?(subitem.strings) && subitem.strings.length > 0 && subitem.strings.last == '' && item.next && subitem.next
                     node.is_tight = false
                     break
                   end
@@ -65,8 +69,10 @@ module RubyCoMa
             :continue => proc { |parser|
               ln = parser.current_line
               if (parser.indent <= 3 && parser.char_code_at(ln, parser.next_nonspace) == CHARCODE_GREATERTHAN)
-                parser.offset = parser.next_nonspace + 1
-                parser.offset += 1 unless parser.char_code_at(ln, parser.offset) != CHARCODE_SPACE
+                parser.move_to_next_nonspace
+                parser.move_offset(1)
+                cc = parser.char_code_at(ln, parser.offset)
+                parser.move_offset(1) if cc == CHARCODE_SPACE || cc == CHARCODE_TAB
                 next true
               end
               false
@@ -74,8 +80,10 @@ module RubyCoMa
             :finalize => proc {},
             :start    => proc { |parser|
               if parser.char_code_at(parser.current_line, parser.next_nonspace) == CHARCODE_GREATERTHAN
-                parser.offset = parser.next_nonspace + 1
-                parser.offset += 1 if parser.char_code_at(parser.current_line, parser.offset) == CHARCODE_SPACE
+                parser.move_to_next_nonspace
+                parser.move_offset(1)
+                cc = parser.char_code_at(parser.current_line, parser.offset)
+                parser.move_offset(1) if cc == CHARCODE_SPACE || cc == CHARCODE_TAB
                 parser.add_child(parser.current_block, BlockQuote.new)
                 next true
               end
@@ -95,14 +103,15 @@ module RubyCoMa
                 parent.remove_child(container)
                 parent.add_child(h)
                 parser.current_block = h
-                parser.offset = parser.current_line.length
+                parser.move_offset(parser.current_line.length - parser.offset)
                 next true
               elsif match = REGEX_HEADERATX.match(parser.current_line[parser.next_nonspace..-1])
-                parser.offset = parser.next_nonspace + match[0].length
+                parser.move_to_next_nonspace
+                parser.move_offset(match[0].length)
                 h = Header.new(match[0].strip.length)
                 h.strings.push(parser.current_line[parser.offset..-1].gsub(/^ *#+ *$/, '').gsub(/ +#+ *$/, ''))
                 parser.add_child(parser.current_block, h)
-                parser.offset = parser.current_line.length
+                parser.move_offset(parser.current_line.length - parser.offset)
                 next true
               end
               false
@@ -115,7 +124,7 @@ module RubyCoMa
               if parser.indent < 4 && REGEX_HORIZONTALRULE.match(parser.current_line[parser.next_nonspace..-1])
                 hr = HorizontalRule.new
                 parser.add_child(parser.current_block, hr)
-                parser.offset = parser.current_line.length
+                parser.move_offset(parser.current_line.length - parser.offset)
                 next true
               end
               false
@@ -123,15 +132,15 @@ module RubyCoMa
         },
         ListItem => {
             :continue => proc { |parser, node|
-              old_offset = parser.offset
-              parser.offset = if parser.on_blank_line
-                                parser.next_nonspace
-                              elsif parser.indent >= node.marker_offset + node.padding
-                                parser.offset + node.marker_offset + node.padding
-                              else
-                                parser.offset
-                              end
-              old_offset != parser.offset
+              if parser.on_blank_line && !node.first_child.nil?
+                parser.move_to_next_nonspace
+              elsif parser.indent >= (node.marker_offset + node.padding)
+                parser.move_offset_by_columns(node.marker_offset + node.padding)
+                puts "offset: #{parser.offset} cols: #{parser.column} indent: #{parser.indent}"
+              else
+                next false
+              end
+              true
             },
             :finalize => proc {},
             :start    => proc { |parser|
@@ -151,20 +160,25 @@ module RubyCoMa
                 next false
               end
 
-              list_node.padding = match[0].length
-              unless spaces_after_marker.between?(1, 4) && match[0].length != ln.length
-                list_node.padding -= (spaces_after_marker + 1)
+              parser.move_to_next_nonspace
+
+              prepadding = match[0].length
+              unless spaces_after_marker.between?(1, 4) && prepadding != ln.length
+                prepadding -= (spaces_after_marker + 1)
               end
               list_node.marker_offset = parser.indent
-              parser.offset = parser.next_nonspace + list_node.padding
+              old_col = parser.column
+              parser.move_offset(prepadding)
+              list_node.padding = parser.column - old_col
 
-              # while (parser.current_block.class == Paragraph) ||
-              #     (parser.current_block.class == ListItem && list_node.marker_offset < parser.current_block.padding) ||
-              #     (parser.current_block.class == List && list_node.marker_offset < parser.current_block.marker_offset)
-              #   parser.finalize_node(parser.current_block)
-              # end
+              if parser.current_block.instance_of?(Paragraph)
+                parser.finalize_node(parser.current_block)
+                if parser.current_block.instance_of?(ListItem) && parser.current_block.matches?(list_node)
+                  parser.finalize_node(parser.current_block)
+                end
+              end
 
-              if parser.current_block.class != List || !parser.current_block.matches?(list_node)
+              if !parser.current_block.instance_of?(List) || !parser.current_block.matches?(list_node)
                 parser.add_child(parser.current_block, List.new(list_node.is_ordered))
                 parser.current_block.copy_properties(list_node)
               end
@@ -186,33 +200,31 @@ module RubyCoMa
 
                 i = container.fence_offset
                 while i > 0 && parser.char_code_at(ln, parser.offset) == CHARCODE_SPACE
-                  parser.offset += 1
+                  parser.move_offset(1)
                   i -= 1
                 end
                 next true
               end
 
               #indented code
-              old_offset = parser.offset
-              parser.offset = if parser.indent >= 4
-                                parser.offset + 4
-                              elsif parser.on_blank_line
-                                parser.offset + parser.next_nonspace
-                              else
-                                parser.offset
-                              end
-
-              parser.offset != old_offset
+              if parser.indent >= 4
+                parser.move_offset_by_columns(4)
+              elsif parser.on_blank_line
+                parser.move_to_next_nonspace
+              else
+                next false
+              end
+              true
             },
             :finalize => proc {},
             :start    => proc { |parser|
               if parser.indent >= 4
                 if parser.current_block.class != Paragraph && !parser.on_blank_line
-                  parser.offset += 4
+                  parser.move_offset_by_columns(4)
                   cb = Code.new
                   parser.add_child(parser.current_block, cb)
                 else
-                  parser.offset = parser.next_nonspace
+                  parser.move_to_next_nonspace
                 end
                 next true
               end
@@ -220,11 +232,12 @@ module RubyCoMa
               if match = REGEX_CODEFENCE.match(parser.current_line[parser.next_nonspace..-1])
                 cb = Code.new(true, match[0][0], match[0].length, parser.indent)
                 parser.add_child(parser.current_block, cb)
-                parser.offset = parser.next_nonspace + match[0].length
+                parser.move_to_next_nonspace
+                parser.move_offset(cb.fence_length)
 
                 if parser.offset < parser.current_line.length && info = parser.current_line[parser.offset..-1].strip
                   cb.info_string = info if info.length > 0
-                  parser.offset = parser.current_line.length
+                  parser.move_offset(parser.current_line.length - parser.offset)
                 end
 
                 next true
@@ -264,8 +277,10 @@ module RubyCoMa
       @current_line = nil
       @line_number = 0
       @offset = 0
+      @column = 0
       @indent = 0
-      @next_nonspace = -1
+      @next_nonspace = 0
+      @next_nonspace_column = 0
       @on_blank_line = false
       @last_line_blank = false
       @last_line_length = 0
@@ -303,11 +318,10 @@ module RubyCoMa
     def parse_inlines(block)
       iparser = InlineParser.new
       walker = NodeWalker.new(block)
-      current = walker.current
+      current = walker.next
 
       until current.nil?
-        nodetype = current.class
-        if !walker.entering && (nodetype == Paragraph || nodetype == Header)
+        if !walker.entering && (current.instance_of?(Paragraph) || current.instance_of?(Header))
           iparser.parse_node(current)
         end
         current = walker.next
@@ -315,7 +329,7 @@ module RubyCoMa
     end
 
     def incorporate_line(line)
-      @current_line = expand_tabs(line)
+      @current_line = line
       @offset = 0
 
       find_next_nonspace
@@ -334,17 +348,15 @@ module RubyCoMa
 
       unless should_continue
         # close off fenced code or broken paragraph if necessary
-        if (@current_block.class == Code && @current_block.is_fenced) || @current_block.class == Paragraph
-          finalize_node(@current_block)
-          return
-        end
         finalize_node(@current_block)
+        return if (@current_block.class == Code && @current_block.is_fenced) || @current_block.class == Paragraph
       end
 
       # try all node starts, stopping when we've hit a leaf to add our line
       can_add_line = false
       line_finished = false
       until can_add_line
+        find_next_nonspace
         counter = 0
         @@helpers.each_value { |type|
           if type[:start].call(self)
@@ -405,16 +417,64 @@ module RubyCoMa
 
     def find_next_nonspace
       line = @current_line
-      match = /[^ \t\n]/.match(line[@offset..-1])
-      #puts "line len #{line.length} and line is #{line} and offset is #{@offset} and match is #{match} and doc is #{@doc}"
-      if match.nil?
-        @next_nonspace = line.length
-        @on_blank_line = true
-      else
-        @next_nonspace = @offset + match.begin(0)
-        @on_blank_line = false
+      i = @offset
+      cols = @column
+
+      until i == line.length
+        if line[i] == ' '
+          i += 1
+          cols += 1
+        elsif line[i] == "\t"
+          i += 1
+          cols += (4 - (cols % 4))
+        else
+          break
+        end
       end
-      @indent = @next_nonspace - @offset
+
+      @on_blank_line = line.length == 0
+      @next_nonspace = i
+      @next_nonspace_column = cols
+      @indent = @next_nonspace_column - @column
+    end
+
+    def move_to_next_nonspace
+      @column = @next_nonspace_column
+      @offset = @next_nonspace
+    end
+
+    def move_offset(count)
+      i = 0
+      cols = 0
+      l = @current_line
+
+      while i < count
+        cols += if l[@offset + i] == "\t"
+                  4 - ((@column + cols) % 4)
+                else
+                  1
+                end
+        i += 1
+      end
+      @offset += i
+      @column += cols
+    end
+
+    def move_offset_by_columns(count)
+      i = 0
+      cols = 0
+      l = @current_line
+
+      while cols < count
+        cols += if l[@offset + i] == "\t"
+                  4 - ((@column + cols) % 4)
+                else
+                  1
+                end
+        i += 1
+      end
+      @offset += i
+      @column += cols
     end
 
     def char_code_at(line, position)
