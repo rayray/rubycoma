@@ -46,15 +46,14 @@ module RubyCoMa
             :finalize => proc { |parser, node|
               item = node.first_child
               until item.nil?
-                if defined?(item.strings) && item.strings.length > 0 && item.strings.last == '' && item.next
-                  puts "#{item.strings}"
+                if parser.ends_with_blank_line(item) && item.next
                   node.is_tight = false
                   break
                 end
 
                 subitem = item.first_child
                 until subitem.nil?
-                  if defined?(subitem.strings) && subitem.strings.length > 0 && subitem.strings.last == '' && item.next && subitem.next
+                  if parser.ends_with_blank_line(item) && (item.next || subitem.next)
                     node.is_tight = false
                     break
                   end
@@ -136,7 +135,6 @@ module RubyCoMa
                 parser.move_to_next_nonspace
               elsif parser.indent >= (node.marker_offset + node.padding)
                 parser.move_offset_by_columns(node.marker_offset + node.padding)
-                puts "offset: #{parser.offset} cols: #{parser.column} indent: #{parser.indent}"
               else
                 next false
               end
@@ -271,7 +269,8 @@ module RubyCoMa
         }
     }
 
-    def initialize
+    def initialize(debug = false)
+      @debug = debug
       @doc = Document.new
       @current_block = @doc
       @current_line = nil
@@ -311,7 +310,7 @@ module RubyCoMa
         finalize_node(@current_block)
       end
       parse_inlines(@doc)
-      puts @doc.to_s
+      puts @doc.to_s if @debug
       @doc
     end
 
@@ -348,8 +347,16 @@ module RubyCoMa
 
       unless should_continue
         # close off fenced code or broken paragraph if necessary
+
+        if @current_block.class == Paragraph && @current_block.parent.class == ListItem
+          @current_block.parent.last_line_blank = true
+          @current_block.last_line_blank = true
+        end
+
         finalize_node(@current_block)
-        return if (@current_block.class == Code && @current_block.is_fenced) || @current_block.class == Paragraph
+        if (@current_block.class == Code && @current_block.is_fenced) || @current_block.class == Paragraph
+          return
+        end
       end
 
       # try all node starts, stopping when we've hit a leaf to add our line
@@ -389,6 +396,20 @@ module RubyCoMa
       node.open = false
       @@helpers[node.class][:finalize].call(self, node)
       @current_block = node.parent
+    end
+
+    def ends_with_blank_line(node)
+      n = node
+      while n
+        return true if n.last_line_blank
+
+        if n.class == List || n.class == ListItem
+          n = n.last_child
+        else
+          break
+        end
+      end
+      false
     end
 
     def add_line_to_node(line, node)

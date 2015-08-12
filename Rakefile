@@ -69,8 +69,8 @@ namespace :test do
     cases = JSON.parse(open('test/tests.json', 'r').read)
     obj = cases[args[:test_number].to_i-1]
     md = obj['markdown']
-    parsed = Parser.new.parse_string(md)
-    actual = HtmlRenderer.new.render_block(parsed)
+    parsed = Parser.new(true).parse_string(md)
+    actual = HtmlRenderer.new(true).render_block(parsed)
     if actual != obj['html']
       puts "\u274c Test #{obj['example']} failed."
       print "  Input:     "
@@ -82,5 +82,26 @@ namespace :test do
     else
       puts "\u2705 Test #{obj['example']} passed."
     end
+  }
+
+  task(:run_spec_tests) { |t|
+    cases = JSON.parse(open('test/tests.json', 'r').read)
+
+    cases.each { |obj|
+      md = obj['markdown']
+      parsed = Parser.new.parse_string(md)
+      actual = HtmlRenderer.new.render_block(parsed)
+      if actual != obj['html']
+        puts "\u274c Test #{obj['example']} failed."
+        # print "  Input:     "
+        # p obj['markdown']
+        # print "  Output:    "
+        # p actual
+        # print "  Expected:  "
+        # p obj['html']
+      else
+        puts "\u2705 Test #{obj['example']} passed."
+      end
+    }
   }
 end

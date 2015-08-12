@@ -211,7 +211,7 @@ module Nodes
     end
   end
 
-  class Paragraph < Leaf; end
+  class Paragraph < Leaf; attr_accessor :last_line_blank; end
   class HTML < Leaf; end
   class Code < Leaf
     attr_accessor :is_fenced
@@ -265,12 +265,14 @@ module Nodes
     attr_accessor :delimiter
     attr_accessor :marker_offset
     attr_accessor :padding
+    attr_accessor :last_line_blank
 
     def can_contain?(block); block.class == ListItem; end
     def initialize(ordered)
       super()
       @is_tight = true
       @is_ordered = ordered
+      @last_line_blank = false
     end
 
     def matches?(l)
@@ -285,6 +287,7 @@ module Nodes
       @delimiter = l.delimiter
       @marker_offset = l.marker_offset
       @padding = l.padding
+      @last_line_blank = l.last_line_blank
     end
   end
 

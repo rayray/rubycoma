@@ -5,7 +5,8 @@ module RubyCoMa
 
     REGEX_HTMLTAG = /<[^>]*>/
 
-    def initialize
+    def initialize(debug = false)
+      @debug = debug
       @buffer = ""
       @disable_tags = 0
       @last_out = "\n"
@@ -156,7 +157,7 @@ module RubyCoMa
                 cr
               end
             when c == Header
-              tagname = 'h' << current.level
+              tagname = "h#{current.level}"
               if walker.entering
                 cr
                 out(create_tag(tagname, attrs))
@@ -187,7 +188,7 @@ module RubyCoMa
         end
         current = walker.next
       end
-      puts "HTML rendered: #{@buffer}"
+      puts "HTML rendered: #{@buffer}" if @debug
       @buffer
     end
   end
