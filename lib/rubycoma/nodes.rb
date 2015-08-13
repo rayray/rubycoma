@@ -16,15 +16,19 @@ module Nodes
     end
 
     def remove
-      unless @prev.nil?
+      if @prev
         @prev.next = @next
+      elsif @parent
+        @parent.first_child = @next
       end
 
-      unless @next.nil?
+      if @next
         @next.prev = @prev
+      elsif @parent
+        @parent.last_child = @prev
       end
 
-      @prev, @next = nil, nil
+      @prev, @next, @parent = nil, nil, nil
     end
 
     def insert(node)
@@ -47,18 +51,6 @@ module Nodes
       end
 
       @last_child = child
-    end
-
-    def remove_child(child)
-      if child == @first_child
-        @first_child = child.next
-      end
-
-      if child == @last_child
-        @last_child = @last_child.prev
-      end
-      child.parent = nil
-      child.remove
     end
   end
 

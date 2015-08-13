@@ -22,6 +22,8 @@ module RubyCoMa
     CHARCODE_LESSTHAN       = 60
     CHARCODE_UNDERSCORE     = 95
     CHARCODE_NEWLINE        = 10
+    CHARCODE_SINGLEQUOTE    = 39
+    CHARCODE_DOUBLEQUOTE    = 34
 
     STRINGREGEX_ESCAPABLE           = '[!"#$%&\'()*+,./\\:;<=>?@\[\]^_`{|}~-]'
     STRINGREGEX_ESCAPED_CHAR        = '\\\\' << STRINGREGEX_ESCAPABLE
@@ -123,7 +125,7 @@ module RubyCoMa
                          when CHARCODE_AMPERSAND
                            parse_entity
                          when CHARCODE_ASTERISK || CHARCODE_UNDERSCORE
-                           parse_emphasis(c)
+                           handle_delimiters(c)
                          when CHARCODE_BACKSLASH
                            parse_backslash
                          when CHARCODE_BACKTICK
@@ -159,25 +161,25 @@ module RubyCoMa
     end
 
     def parse_left_bracket
-      startpos = @char_index
+      start_pos = @char_index
       @char_index += 1
 
       node = Inline.new(:text, '[')
       @node.add_child(node)
 
       add_delimiter({:cc => CHARCODE_LEFTBRACKET,
-                     :numdelims => 1,
+                     :num_delims => 1,
                      :node => node,
                      :can_open => true,
                      :can_close => false,
-                     :index => startpos,
+                     :index => start_pos,
                      :active => true
                     })
       true
     end
 
     def parse_exclam
-      startpos = @char_index
+      start_pos = @char_index
       @char_index += 1
       if peek == CHARCODE_LEFTBRACKET
         @char_index += 1
@@ -186,11 +188,11 @@ module RubyCoMa
         @node.add_child(node)
 
         add_delimiter({:cc => CHARCODE_EXCLAM,
-                       :numdelims => 1,
+                       :num_delims => 1,
                        :node => node,
                        :can_open => true,
                        :can_close => false,
-                       :index => startpos + 1,
+                       :index => start_pos + 1,
                        :active => true
                       })
       else
@@ -283,7 +285,7 @@ module RubyCoMa
 
     def parse_right_bracket
       @char_index += 1
-      startpos = @char_index
+      start_pos = @char_index
 
       opener = @delimiters
 
@@ -330,7 +332,7 @@ module RubyCoMa
         before_label = @char_index
         n = parse_link_label
         reflabel = if n == 0 || n == 2
-                     @node.strings[@line_index][opener[:index]..startpos]
+                     @node.strings[@line_index][opener[:index]..start_pos]
                    else
                      @node.strings[@line_index][before_label..before_label+n]
                    end
@@ -366,7 +368,7 @@ module RubyCoMa
         end
       else
         remove_delimiter(opener)
-        @char_index = startpos
+        @char_index = start_pos
         add_inline(:text, ']')
       end
       true
@@ -379,14 +381,22 @@ module RubyCoMa
       false
     end
 
-    def parse_emphasis(cc)
-      numdelims, can_open, can_close = scan_delimiters(cc)
-      return false if numdelims == 0
-      startpos = @char_index
-      @char_index += numdelims
-      inl = add_inline(:text, @node.strings[@line_index][startpos..@char_index])
+    def handle_delimiters(cc)
+      num_delims, can_open, can_close = scan_delimiters(cc)
+      return false if num_delims.nil?
+      start_pos = @char_index
+      @char_index += num_delims
+      contents = if cc == CHARCODE_SINGLEQUOTE
+                   "\u2019"
+                 elsif cc == CHARCODE_DOUBLEQUOTE
+                   "\u201C"
+                 else
+                   @node.strings[@line_index][start_pos..@char_index]
+                 end
+
+      inl = add_inline(:text, contents)
       add_delimiter({:cc => cc,
-                     :numdelims => numdelims,
+                     :num_delims => num_delims,
                      :inline_node => inl,
                      :can_open => can_open,
                      :can_close => can_close,
@@ -425,14 +435,26 @@ module RubyCoMa
     end
 
     def scan_delimiters(cc)
-      numdelims = 0
-      startpos = @char_index
-      char_before = startpos == 0 ? "\n" : @node.strings[@line_index][@char_index-1]
-      can_open = can_close = false
-      while peek == cc
-        numdelims += 1
+      num_delims = 0
+      start_pos = @char_index
+
+      can_open = false
+      can_close = false
+
+      if cc == CHARCODE_SINGLEQUOTE || cc == CHARCODE_DOUBLEQUOTE
+        num_delims += 1
         @char_index += 1
+      else
+        while peek == cc
+          num_delims += 1
+          @char_index += 1
+        end
       end
+
+      return nil, nil, nil if num_delims == 0
+
+      char_before = start_pos == 0 ? "\n" : @node.strings[@line_index][@char_index-1]
+
       cc_after = peek
       char_after = if cc_after == -1
                      "\n"
@@ -440,89 +462,136 @@ module RubyCoMa
                      char_from_ord(cc_after)
                    end
 
-      left_flanking = numdelims > 0 &&
-          !REGEX_WHITESPACECHARACTER.match(char_after) &&
-          !(REGEX_PUNCTUATION.match(char_after) &&
-              !REGEX_WHITESPACECHARACTER.match(char_before) &&
-              !REGEX_PUNCTUATION.match(char_before))
-      right_flanking = numdelims > 0 &&
-          !REGEX_WHITESPACECHARACTER.match(char_before) &&
-          !(REGEX_PUNCTUATION.match(char_before) &&
-              !REGEX_WHITESPACECHARACTER.match(char_after) &&
-              !REGEX_PUNCTUATION.match(char_after))
+      after_is_whitespace = char_after =~ REGEX_WHITESPACECHARACTER
+      after_is_punc = char_after =~ REGEX_PUNCTUATION
+      before_is_whitespace = char_before =~ REGEX_WHITESPACECHARACTER
+      before_is_punc = char_before =~ REGEX_PUNCTUATION
+
+      left_flanking = !after_is_whitespace && !(after_is_punc && !before_is_whitespace && !before_is_punc)
+      right_flanking = !before_is_whitespace && !(before_is_punc && !after_is_whitespace && !after_is_punc)
+
       if cc == CHARCODE_UNDERSCORE
+        can_open = left_flanking && (!right_flanking || before_is_punc)
+        can_close = right_flanking && (!left_flanking || after_is_punc)
+      elsif cc == CHARCODE_DOUBLEQUOTE || cc == CHARCODE_SINGLEQUOTE
         can_open = left_flanking && !right_flanking
-        can_close = right_flanking && !left_flanking
+        can_close = right_flanking
       else
         can_open = left_flanking
         can_close = right_flanking
       end
-      @char_index = startpos
-      return numdelims, can_open, can_close
+      @char_index = start_pos
+      return num_delims, can_open, can_close
     end
 
     def process_emphasis(stack_bottom = nil)
+
+      openers_bottom = { CHARCODE_UNDERSCORE => stack_bottom,
+                         CHARCODE_ASTERISK => stack_bottom,
+                         CHARCODE_SINGLEQUOTE => stack_bottom,
+                         CHARCODE_DOUBLEQUOTE => stack_bottom }
+
       closer = @delimiters
       until closer.nil? || closer[:previous] == stack_bottom
         closer = closer[:previous]
       end
       until closer.nil?
+        closercc = closer[:cc]
         if closer[:can_close] &&
-            (closer[:cc] == CHARCODE_ASTERISK || closer[:cc] == CHARCODE_UNDERSCORE)
+            (closercc == CHARCODE_ASTERISK ||
+                closercc == CHARCODE_UNDERSCORE ||
+                closercc == CHARCODE_DOUBLEQUOTE ||
+                closercc == CHARCODE_SINGLEQUOTE)
+
           opener = closer[:previous]
-          until opener.nil? || opener[:previous] == stack_bottom
-            break if opener[:cc] == closer[:cc] && opener[:can_open]
+          opener_found = false
+
+          until opener.nil? || opener == stack_bottom || opener == openers_bottom[closercc]
+            if opener[:cc] == closer[:cc] && opener[:can_open]
+              opener_found = true
+              break
+            end
             opener = opener[:previous]
           end
-          if opener != nil && opener != stack_bottom
-            if closer[:numdelims] < 3 || opener[:numdelims] < 3
-              use_delims = closer[:numdelims] <= opener[:numdelims] ? closer[:numdelims] : opener[:numdelims]
+
+          old_closer = closer
+
+          if closercc == CHARCODE_ASTERISK || CHARCODE_UNDERSCORE
+            if opener_found
+
+              use_delims = if closer[:num_delims] < 3 || opener[:num_delims] < 3
+                             if closer[:num_delims] <= opener[:num_delims]
+                               closer[:num_delims]
+                             else
+                               opener[:num_delims]
+                             end
+                           else
+                             if closer[:num_delims] % 2 == 0
+                               2
+                             else
+                               1
+                             end
+                           end
+              opener_inl = opener[:node]
+              closer_inl = closer[:node]
+
+              opener[:num_delims] -= use_delims
+              closer[:num_delims] -= use_delims
+
+              opener_inl.content = opener_inl.content[0..(opener_inl.content.length - use_delims)]
+              closer_inl.content = closer_inl.content[0..(closer_inl.content.length - use_delims)]
+
+              emph = Inline.new(use_delims == 1 ? :emphasized : :strong)
+
+              tmp = opener_inl[:next]
+              until tmp.nil? || tmp == closer_inl
+                nxt = tmp[:next]
+                tmp.remove
+                emph.add_child(tmp)
+                tmp = nxt
+              end
+
+              opener_inl.insert(emph)
+
+              #remove delims between opener & closer
+              if opener[:next] != closer
+                opener[:next] = closer
+                closer[:previous] = opener
+              end
+
+              if opener[:num_delims] == 0
+                opener_inl.remove
+                remove_delimiter(opener)
+              end
+
+              if closer[:num_delims] == 0
+                closer_inl.remove
+                tempstack = closer[:next]
+                remove_delimiter(closer)
+                closer = tempstack
+              end
             else
-              use_delims = closer[:numdelims] % 2 == 0 ? 2 : 1
+              closer = closer[:next]
             end
-
-            opener_inl = opener[:inline_node]
-            closer_inl = closer[:inline_node]
-            opener[:numdelims] -= use_delims
-            closer[:numdelims] -= use_delims
-
-            opener_inl.content = opener_inl.content[0..opener_inl.content.length - use_delims]
-            closer_inl.content = closer_inl.content[0..closer_inl.content.length - use_delims]
-
-            emph = Inline.new((use_delims == 1) ? :emph : :strong)
-
-            tmp = opener_inl.next
-            until tmp.nil? || tmp == closer_inl
-              nxt = tmp.next
-              @node.remove_child(tmp)
-              emph.add_child(tmp)
-              tmp = nxt
-            end
-
-            opener_inl.insert(emph)
-
-            tempstack = closer[:previous]
-            until tempstack.nil? || tempstack == opener
-              nextstack = tempstack[:previous]
-              remove_delimiter(tempstack)
-              tempstack = nextstack
-            end
-
-            if opener[:numdelims] == 0
-              @node.remove_child(closer_inl)
-              tempstack = closer[:next]
-              remove_delimiter(closer)
-              closer = tempstack
-            end
-          else
+          elsif closercc == CHARCODE_SINGLEQUOTE
+            closer.node.content = "\u2019"
+            opener.node.content = "\u2018" if opener_found
             closer = closer[:next]
+          elsif closercc == CHARCODE_DOUBLEQUOTE
+            closer.node.content = "\u201D"
+            opener.node.content = "\u201C" if opener_found
+          end
+
+          unless opener_found
+            openers_bottom[closercc] = old_closer[:previous]
+            remove_delimiter(old_closer) unless old_closer[:can_open]
           end
         else
           closer = closer[:next]
         end
       end
 
-      until @delimiters == stack_bottom
+      until @delimiters.nil? || @delimiters == stack_bottom
         remove_delimiter(@delimiters)
       end
     end
