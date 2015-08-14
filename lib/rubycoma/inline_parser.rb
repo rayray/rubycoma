@@ -73,25 +73,15 @@ module RubyCoMa
     end
 
     def peek
-      if @line_index == -1
-        return @line_index
+      if @char_index < @string.length
+        return @string[@char_index].ord
       end
-
-      unless @char_index < @node.strings[@line_index].length
-        @line_index += 1
-        if @line_index == @node.strings.count
-          @line_index = -1
-          return @line_index
-        end
-        @char_index = 0
-        return CHARCODE_NEWLINE
-      end
-      @node.strings[@line_index][@char_index].ord
+      -1
     end
 
     # if a match is found, advance the current char position
     def match(re)
-      m = re.match(@node.strings[@line_index][@char_index..-1])
+      m = re.match(@string[@char_index..-1])
       if m
         @char_index += m.begin(0) + m[0].length
         return m[0]
@@ -115,10 +105,11 @@ module RubyCoMa
 
     def parse_node(node)
       @node = node
-      @line_index = 0
+      @string = node.strings.join("\n")
       @char_index = 0
       c = peek
       until c == -1
+        puts "parsing char " << char_from_ord(c)
         inline_added = case c
                          when CHARCODE_NEWLINE
                            handle_newline
@@ -148,9 +139,11 @@ module RubyCoMa
         end
         c = peek
       end
+      process_emphasis
     end
 
     def handle_newline
+      @char_index += 1
       lastc = @node.last_child
       if lastc && lastc.style == :text
         sps = REGEX_FINALSPACE.match(lastc.content)[0].length
@@ -158,6 +151,7 @@ module RubyCoMa
       else
         add_inline(:softbreak)
       end
+      true
     end
 
     def parse_left_bracket
@@ -206,8 +200,8 @@ module RubyCoMa
       if peek == CHARCODE_NEWLINE
         @char_index += 1
         add_inline(:hardbreak)
-      elsif REGEX_ESCAPABLE.match(@node.strings[@line_index][@char_index])
-        add_inline(:text, @node.strings[@line_index][@char_index])
+      elsif REGEX_ESCAPABLE.match(@string[@char_index])
+        add_inline(:text, @string[@char_index])
       else
         add_inline(:text, '\\')
       end
@@ -221,7 +215,7 @@ module RubyCoMa
       matched = match(REGEX_TICKS)
       until matched.nil?
         if matched == ticks
-          add_inline(:code_inline, @node.strings[@line_index][after_open_ticks..(@char_index - ticks.length)])
+          add_inline(:code_inline, @string[after_open_ticks..(@char_index - ticks.length)])
           return true
         end
       end
@@ -319,7 +313,7 @@ module RubyCoMa
         if spnl &&
             (dest = parse_link_destination) &&
             spnl &&
-            REGEX_WHITESPACECHARACTER.match(@node.strings[@line_index][@char_index - 1]) &&
+            REGEX_WHITESPACECHARACTER.match(@string[@char_index - 1]) &&
             ((title = parse_link_title) || true) &&
             spnl &&
             peek == CHARCODE_RIGHTPAREN
@@ -332,9 +326,9 @@ module RubyCoMa
         before_label = @char_index
         n = parse_link_label
         reflabel = if n == 0 || n == 2
-                     @node.strings[@line_index][opener[:index]..start_pos]
+                     @string[opener[:index]..start_pos]
                    else
-                     @node.strings[@line_index][before_label..before_label+n]
+                     @string[before_label..before_label+n]
                    end
         @char_index = savepos if n == 0
         #TODO implement reference map
@@ -382,7 +376,9 @@ module RubyCoMa
     end
 
     def handle_delimiters(cc)
+      puts "handling delim " << char_from_ord(cc)
       num_delims, can_open, can_close = scan_delimiters(cc)
+      puts num_delims
       return false if num_delims.nil?
       start_pos = @char_index
       @char_index += num_delims
@@ -391,10 +387,12 @@ module RubyCoMa
                  elsif cc == CHARCODE_DOUBLEQUOTE
                    "\u201C"
                  else
-                   @node.strings[@line_index][start_pos..@char_index]
+                   @string[start_pos..@char_index]
                  end
 
       inl = add_inline(:text, contents)
+
+      puts "made inl " << inl.to_s
       add_delimiter({:cc => cc,
                      :num_delims => num_delims,
                      :inline_node => inl,
@@ -453,7 +451,7 @@ module RubyCoMa
 
       return nil, nil, nil if num_delims == 0
 
-      char_before = start_pos == 0 ? "\n" : @node.strings[@line_index][@char_index-1]
+      char_before = start_pos == 0 ? "\n" : @string[@char_index-1]
 
       cc_after = peek
       char_after = if cc_after == -1
