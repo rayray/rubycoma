@@ -109,7 +109,6 @@ module RubyCoMa
       @char_index = 0
       c = peek
       until c == -1
-        puts "parsing char " << char_from_ord(c)
         inline_added = case c
                          when CHARCODE_NEWLINE
                            handle_newline
@@ -215,7 +214,7 @@ module RubyCoMa
       matched = match(REGEX_TICKS)
       until matched.nil?
         if matched == ticks
-          add_inline(:code_inline, @string[after_open_ticks..(@char_index - ticks.length)])
+          add_inline(:code_inline, @string[after_open_ticks..(@char_index - ticks.length)-1])
           return true
         end
       end
@@ -328,7 +327,7 @@ module RubyCoMa
         reflabel = if n == 0 || n == 2
                      @string[opener[:index]..start_pos]
                    else
-                     @string[before_label..before_label+n]
+                     @string[before_label..before_label+n-1]
                    end
         @char_index = savepos if n == 0
         #TODO implement reference map
@@ -376,9 +375,8 @@ module RubyCoMa
     end
 
     def handle_delimiters(cc)
-      puts "handling delim " << char_from_ord(cc)
       num_delims, can_open, can_close = scan_delimiters(cc)
-      puts num_delims
+
       return false if num_delims.nil?
       start_pos = @char_index
       @char_index += num_delims
@@ -387,12 +385,11 @@ module RubyCoMa
                  elsif cc == CHARCODE_DOUBLEQUOTE
                    "\u201C"
                  else
-                   @string[start_pos..@char_index]
+                   @string[start_pos..@char_index-1]
                  end
 
       inl = add_inline(:text, contents)
 
-      puts "made inl " << inl.to_s
       add_delimiter({:cc => cc,
                      :num_delims => num_delims,
                      :inline_node => inl,
@@ -536,8 +533,8 @@ module RubyCoMa
               opener[:num_delims] -= use_delims
               closer[:num_delims] -= use_delims
 
-              opener_inl.content = opener_inl.content[0..(opener_inl.content.length - use_delims)]
-              closer_inl.content = closer_inl.content[0..(closer_inl.content.length - use_delims)]
+              opener_inl.content = opener_inl.content[0..(opener_inl.content.length - use_delims)-1]
+              closer_inl.content = closer_inl.content[0..(closer_inl.content.length - use_delims)-1]
 
               emph = Inline.new(use_delims == 1 ? :emphasized : :strong)
 

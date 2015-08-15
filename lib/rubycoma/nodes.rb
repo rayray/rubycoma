@@ -73,7 +73,7 @@ module Nodes
     attr_accessor :destination
     attr_accessor :title
 
-    def initialize(style, content = nil)
+    def initialize(style, content = "")
       super()
       @style = style
       @content = content
