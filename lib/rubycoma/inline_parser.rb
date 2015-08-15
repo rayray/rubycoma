@@ -4,11 +4,6 @@ module RubyCoMa
     include Nodes
     require 'cgi'
 
-    attr_accessor :line_index
-    attr_accessor :char_index
-    attr_accessor :node
-    attr_accessor :delimiters
-
     CHARCODE_AMPERSAND      = 38
     CHARCODE_ASTERISK       = 42
     CHARCODE_BACKSLASH      = 92
@@ -72,40 +67,9 @@ module RubyCoMa
       @delimiters = nil
     end
 
-    def peek
-      if @char_index < @string.length
-        return @string[@char_index].ord
-      end
-      -1
-    end
-
-    # if a match is found, advance the current char position
-    def match(re)
-      m = re.match(@string[@char_index..-1])
-      if m
-        @char_index += m.begin(0) + m[0].length
-        return m[0]
-      end
-      nil
-    end
-
-    def spnl
-      match(REGEX_SPACES)
-      if peek == CHARCODE_NEWLINE
-        match(REGEX_SPACES)
-      end
-      true
-    end
-
-    def add_inline(type, string = nil)
-      inl = Inline.new(type, string)
-      @node.add_child(inl)
-      inl
-    end
-
-    def parse_node(node)
-      @node = node
-      @string = node.strings.join("\n")
+    def parse_block(block)
+      @block = block
+      @string = block.strings.join("\n").strip
       @char_index = 0
       c = peek
       until c == -1
@@ -141,9 +105,40 @@ module RubyCoMa
       process_emphasis
     end
 
+    def peek
+      if @char_index < @string.length
+        return @string[@char_index].ord
+      end
+      -1
+    end
+
+    # if a match is found, advance the current char position
+    def match(re)
+      m = re.match(@string[@char_index..-1])
+      if m
+        @char_index += m.begin(0) + m[0].length
+        return m[0]
+      end
+      nil
+    end
+
+    def spnl
+      match(REGEX_SPACES)
+      if peek == CHARCODE_NEWLINE
+        match(REGEX_SPACES)
+      end
+      true
+    end
+
+    def add_inline(type, string = nil)
+      inl = Inline.new(type, string)
+      @block.add_child(inl)
+      inl
+    end
+
     def handle_newline
       @char_index += 1
-      lastc = @node.last_child
+      lastc = @block.last_child
       if lastc && lastc.style == :text
         sps = REGEX_FINALSPACE.match(lastc.content)[0].length
         add_inline(sps >= 2 ? :hardbreak : :softbreak)
@@ -158,11 +153,11 @@ module RubyCoMa
       @char_index += 1
 
       node = Inline.new(:text, '[')
-      @node.add_child(node)
+      @block.add_child(node)
 
       add_delimiter({:cc => CHARCODE_LEFTBRACKET,
                      :num_delims => 1,
-                     :node => node,
+                     :inline_node => node,
                      :can_open => true,
                      :can_close => false,
                      :index => start_pos,
@@ -178,11 +173,11 @@ module RubyCoMa
         @char_index += 1
 
         node = Inline.new(:text, '![')
-        @node.add_child(node)
+        @block.add_child(node)
 
         add_delimiter({:cc => CHARCODE_EXCLAM,
                        :num_delims => 1,
-                       :node => node,
+                       :inline_node => node,
                        :can_open => true,
                        :can_close => false,
                        :index => start_pos + 1,
@@ -231,7 +226,7 @@ module RubyCoMa
         inl.destination = 'mailto:' << dest
         inl.title = ''
         inl.add_child(Inline.new(:text, dest))
-        @node.add_child(inl)
+        @block.add_child(inl)
         return true
       end
 
@@ -241,7 +236,7 @@ module RubyCoMa
         inl.destination = dest
         inl.title = ''
         inl.add_child(Inline.new(:text, dest))
-        @node.add_child(inl)
+        @block.add_child(inl)
         return true
       end
       false
@@ -341,14 +336,14 @@ module RubyCoMa
         tmp = opener[:inline_node].next
         until tmp.nil?
           nxt = tmp.next
-          @node.remove_child(tmp)
+          tmp.remove
           inl.add_child(tmp)
           tmp = nxt
         end
 
         add_inline(inl)
         process_emphasis(opener[:previous])
-        @node.remove_child(opener[:inline_node])
+        opener[:inline_node].remove
 
         unless is_image
           opener = @delimiters
@@ -527,8 +522,8 @@ module RubyCoMa
                                1
                              end
                            end
-              opener_inl = opener[:node]
-              closer_inl = closer[:node]
+              opener_inl = opener[:inline_node]
+              closer_inl = closer[:inline_node]
 
               opener[:num_delims] -= use_delims
               closer[:num_delims] -= use_delims
@@ -538,9 +533,9 @@ module RubyCoMa
 
               emph = Inline.new(use_delims == 1 ? :emphasized : :strong)
 
-              tmp = opener_inl[:next]
+              tmp = opener_inl.next
               until tmp.nil? || tmp == closer_inl
-                nxt = tmp[:next]
+                nxt = tmp.next
                 tmp.remove
                 emph.add_child(tmp)
                 tmp = nxt

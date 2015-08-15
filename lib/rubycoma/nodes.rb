@@ -39,6 +39,7 @@ module Nodes
 
       @next = node
       node.prev = self
+      node.parent = @parent
     end
 
     def add_child(child)

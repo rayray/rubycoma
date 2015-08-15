@@ -99,7 +99,7 @@ module RubyCoMa
                 h = Header.new(level)
                 h.strings.push(container.strings[0])
                 parent = container.parent
-                parent.remove_child(container)
+                container.remove
                 parent.add_child(h)
                 parser.current_block = h
                 parser.move_offset(parser.current_line.length - parser.offset)
@@ -321,7 +321,7 @@ module RubyCoMa
 
       until current.nil?
         if !walker.entering && (current.instance_of?(Paragraph) || current.instance_of?(Header))
-          iparser.parse_node(current)
+          iparser.parse_block(current)
         end
         current = walker.next
       end
@@ -400,7 +400,7 @@ module RubyCoMa
 
     def ends_with_blank_line(node)
       n = node
-      while n
+      while n && (n.class <= List || n.class == Paragraph)
         return true if n.last_line_blank
 
         if n.class == List || n.class == ListItem

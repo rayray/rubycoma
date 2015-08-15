@@ -59,7 +59,6 @@ module RubyCoMa
       current = walker.next
 
       until current.nil?
-
         c = current.class
 
         if c == Inline
@@ -85,7 +84,7 @@ module RubyCoMa
               tag = if walker.entering
                       'strong'
                     else
-                      'strong'
+                      '/strong'
                     end
               out(create_tag(tag))
             when :link
@@ -188,7 +187,6 @@ module RubyCoMa
         end
         current = walker.next
       end
-      puts "HTML rendered: #{@buffer}" if @debug
       @buffer
     end
   end
