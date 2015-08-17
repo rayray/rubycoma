@@ -83,7 +83,7 @@ module RubyCoMa
                 parser.move_offset(1)
                 cc = parser.char_code_at(parser.current_line, parser.offset)
                 parser.move_offset(1) if cc == CHARCODE_SPACE || cc == CHARCODE_TAB
-                parser.add_child(parser.current_block, BlockQuote.new)
+                parser.add_child(BlockQuote.new)
                 next true
               end
               false
@@ -109,7 +109,7 @@ module RubyCoMa
                 parser.move_offset(match[0].length)
                 h = Header.new(match[0].strip.length)
                 h.strings.push(parser.current_line[parser.offset..-1].gsub(/^ *#+ *$/, '').gsub(/ +#+ *$/, ''))
-                parser.add_child(parser.current_block, h)
+                parser.add_child(h)
                 parser.move_offset(parser.current_line.length - parser.offset)
                 next true
               end
@@ -122,7 +122,7 @@ module RubyCoMa
             :start    => proc { |parser|
               if parser.indent < 4 && REGEX_HORIZONTALRULE.match(parser.current_line[parser.next_nonspace..-1])
                 hr = HorizontalRule.new
-                parser.add_child(parser.current_block, hr)
+                parser.add_child(hr)
                 parser.move_offset(parser.current_line.length - parser.offset)
                 next true
               end
@@ -170,17 +170,17 @@ module RubyCoMa
               list_node.padding = parser.column - old_col
 
               if parser.current_block.instance_of?(Paragraph)
-                parser.finalize_node(parser.current_block)
+                parser.finalize_current_block
                 if parser.current_block.instance_of?(ListItem) && parser.current_block.matches?(list_node)
-                  parser.finalize_node(parser.current_block)
+                  parser.finalize_current_block
                 end
               end
 
               if !parser.current_block.instance_of?(List) || !parser.current_block.matches?(list_node)
-                parser.add_child(parser.current_block, List.new(list_node.is_ordered))
+                parser.add_child(List.new(list_node.is_ordered))
                 parser.current_block.copy_properties(list_node)
               end
-              parser.add_child(parser.current_block, list_node)
+              parser.add_child(list_node)
               true
             }
         },
@@ -220,7 +220,7 @@ module RubyCoMa
                 if parser.current_block.class != Paragraph && !parser.on_blank_line
                   parser.move_offset_by_columns(4)
                   cb = Code.new
-                  parser.add_child(parser.current_block, cb)
+                  parser.add_child(cb)
                 else
                   parser.move_to_next_nonspace
                 end
@@ -229,7 +229,7 @@ module RubyCoMa
 
               if match = REGEX_CODEFENCE.match(parser.current_line[parser.next_nonspace..-1])
                 cb = Code.new(true, match[0][0], match[0].length, parser.indent)
-                parser.add_child(parser.current_block, cb)
+                parser.add_child(cb)
                 parser.move_to_next_nonspace
                 parser.move_offset(cb.fence_length)
 
@@ -252,7 +252,7 @@ module RubyCoMa
             :start    => proc { |parser|
               if REGEX_HTMLOPEN.match(parser.current_line[parser.next_nonspace..-1])
                 b = HTML.new
-                parser.add_child(parser.current_block, b)
+                parser.add_child(b)
                 next true
               end
               false
@@ -307,7 +307,7 @@ module RubyCoMa
         incorporate_line(line)
       }
       until @current_block.nil?
-        finalize_node(@current_block)
+        finalize_current_block
       end
       parse_inlines(@doc)
       puts @doc.to_s if @debug
@@ -333,11 +333,21 @@ module RubyCoMa
 
       find_next_nonspace
 
-      should_continue = @@helpers[@current_block.class][:continue].call(self, @current_block)
+      @last_matched_block = nil
+      should_continue = true
+
+      b = @doc
+      while @last_matched_block.nil? && !b.nil? && b.open
+        should_continue = @@helpers[b.class][:continue].call(self, b)
+        unless should_continue
+          @last_matched_block = b.parent
+        end
+        b = b.last_child
+      end
 
       # code block, easy peasy
       if should_continue && @current_block.accepts_lines? && @current_block.class != Paragraph
-        add_line_to_node(@current_line, @current_block)
+        add_line_to_block
         return
       end
 
@@ -345,17 +355,17 @@ module RubyCoMa
         return if @last_line_blank && close_all_lists(@current_block)
       end
 
-      unless should_continue
-        # close off fenced code or broken paragraph if necessary
-
-        if @current_block.class == Paragraph && @current_block.parent.class == ListItem
-          @current_block.parent.last_line_blank = true
-          @current_block.last_line_blank = true
+      unless @last_matched_block.nil? || @last_matched_block.last_child.nil?
+        block_to_close = @last_matched_block.last_child
+        if block_to_close.class == Paragraph && block_to_close.parent.class == ListItem
+          block_to_close.parent.last_line_blank = true
+          block_to_close.last_line_blank = true
         end
 
-        finalize_node(@current_block)
-        if (@current_block.class == Code && @current_block.is_fenced) || @current_block.class == Paragraph
-          return
+        if block_to_close == @current_block
+          puts "hit btc is #{block_to_close.class}"
+          finalize_current_block
+          return if (block_to_close.class == Code && block_to_close.is_fenced) || block_to_close.class == Paragraph
         end
       end
 
@@ -383,19 +393,24 @@ module RubyCoMa
           return if @on_blank_line
           unless @current_block.class == Paragraph
             p = Paragraph.new
-            add_child(@current_block, p)
+            add_child(p)
           end
           can_add_line = true
         end
       end
 
-      add_line_to_node(@current_line, @current_block)
+      add_line_to_block
     end
 
-    def finalize_node(node)
+    def finalize_block(node)
       node.open = false
       @@helpers[node.class][:finalize].call(self, node)
-      @current_block = node.parent
+    end
+
+    def finalize_current_block
+      @current_block.open = false
+      @@helpers[@current_block.class][:finalize].call(self, @current_block)
+      @current_block = @current_block.parent
     end
 
     def ends_with_blank_line(node)
@@ -403,7 +418,7 @@ module RubyCoMa
       while n && (n.class <= List || n.class == Paragraph)
         return true if n.last_line_blank
 
-        if n.class == List || n.class == ListItem
+        if n.class <= List
           n = n.last_child
         else
           break
@@ -412,11 +427,11 @@ module RubyCoMa
       false
     end
 
-    def add_line_to_node(line, node)
-      if @offset >= line.length
-        node.strings.push("")
+    def add_line_to_block
+      if @offset >= @current_line.length
+        @current_block.strings.push("")
       else
-        node.strings.push(line[@offset..-1])
+        @current_block.strings.push(@current_line[@offset..-1])
       end
     end
 
@@ -427,8 +442,8 @@ module RubyCoMa
     def close_all_lists(node)
       b = node
       tree_changed = false
-      while b.class == ListItem && b.class == List
-        finalize_node(b)
+      while b.class <= List
+        finalize_block(b)
         tree_changed = true
         b = b.parent
       end
@@ -503,10 +518,20 @@ module RubyCoMa
       line[position].ord
     end
 
-    def add_child(parent, child)
-      container = parent
+    def add_child(child)
+      container = @current_block
+
+      if @last_matched_block && container != @last_matched_block
+        until container == @last_matched_block
+          finalize_block(container)
+          container = container.parent
+        end
+      end
+
+      puts "container is #{container.class} and lmb is #{@last_matched_block.class}"
+
       until container.can_contain?(child)  # go up until we find a container
-        finalize_node(container)
+        finalize_block(container)
         container = container.parent
       end
       container.add_child(child)
