@@ -94,7 +94,10 @@ module RubyCoMa
             :finalize => proc {},
             :start    => proc { |parser|
               container = parser.current_block
-              if container.class == Paragraph && container.strings.count == 1 && match = REGEX_HEADERSETEXT.match(parser.current_line[parser.next_nonspace..-1])
+              if parser.indent < 4 &&
+                  container.class == Paragraph &&
+                  container.strings.count == 1 &&
+                  match = REGEX_HEADERSETEXT.match(parser.current_line[parser.next_nonspace..-1])
                 level = match[0][0] == '=' ? 1 : 2
                 h = Header.new(level)
                 h.strings.push(container.strings[0])
@@ -104,7 +107,8 @@ module RubyCoMa
                 parser.current_block = h
                 parser.move_offset(parser.current_line.length - parser.offset)
                 next true
-              elsif parser.indent < 4 && match = REGEX_HEADERATX.match(parser.current_line[parser.next_nonspace..-1])
+              elsif parser.indent < 4 &&
+                  match = REGEX_HEADERATX.match(parser.current_line[parser.next_nonspace..-1])
                 parser.move_to_next_nonspace
                 parser.move_offset(match[0].length)
                 h = Header.new(match[0].strip.length)
@@ -216,15 +220,11 @@ module RubyCoMa
             },
             :finalize => proc {},
             :start    => proc { |parser|
-              if parser.indent >= 4
-                if parser.current_block.class != Paragraph && !parser.on_blank_line
+              if parser.indent >= 4 && parser.current_block.class != Paragraph && !parser.on_blank_line
                   parser.move_offset_by_columns(4)
                   cb = Code.new
                   parser.add_child(cb)
-                else
-                  parser.move_to_next_nonspace
-                end
-                next true
+                  next true
               end
 
               if match = REGEX_CODEFENCE.match(parser.current_line[parser.next_nonspace..-1])
@@ -389,6 +389,7 @@ module RubyCoMa
         }
         return if line_finished
         if counter == @@helpers.count
+          move_to_next_nonspace
           return if @on_blank_line
           unless @current_block.class == Paragraph
             p = Paragraph.new
