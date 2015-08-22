@@ -91,14 +91,14 @@ module RubyCoMa
                          when CHARCODE_RIGHTBRACKET
                            parse_right_bracket
                          when CHARCODE_LESSTHAN
-                           parse_less_than
+                           parse_autolink || parse_html_tag
                          else
                            parse_string
                        end
 
         unless inline_added
           @char_index += 1
-          add_inline(:text, char_from_ord(c))
+          add_inline(:text, CGI::escapeHTML(char_from_ord(c)))
         end
         c = peek
       end
@@ -243,10 +243,10 @@ module RubyCoMa
       false
     end
 
-    def parse_less_than
+    def parse_html_tag
       m = match(REGEX_HTMLTAG)
       return false if m.nil?
-      add_inline(:html, m)
+      add_inline(:html_inline, m)
       true
     end
 
@@ -398,7 +398,7 @@ module RubyCoMa
 
     def parse_string
       if m = match(REGEX_MAIN)
-        add_inline(:text, m)
+        add_inline(:text, CGI::escapeHTML(m))
         return true
       end
       false
@@ -450,7 +450,7 @@ module RubyCoMa
       char_after = if cc_after == -1
                      "\n"
                    else
-                     char_from_ord(cc_after)
+                     CGI::escapeHTML(char_from_ord(cc_after))
                    end
 
       after_is_whitespace = char_after =~ REGEX_WHITESPACECHARACTER
