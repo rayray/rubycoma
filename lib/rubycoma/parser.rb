@@ -365,6 +365,10 @@ module RubyCoMa
         if block_to_close == @current_block
           finalize_current_block
           return if (block_to_close.class == Code && block_to_close.is_fenced) || block_to_close.class == Paragraph
+        elsif block_to_close.class <= Container
+          until @current_block == @last_matched_block
+            finalize_current_block
+          end
         end
       end
 
