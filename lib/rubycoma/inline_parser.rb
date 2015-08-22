@@ -196,6 +196,7 @@ module RubyCoMa
         add_inline(:hardbreak)
       elsif REGEX_ESCAPABLE.match(@string[@char_index])
         add_inline(:text, @string[@char_index])
+        @char_index += 1
       else
         add_inline(:text, '\\')
       end

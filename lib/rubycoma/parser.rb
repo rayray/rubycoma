@@ -104,7 +104,7 @@ module RubyCoMa
                 parser.current_block = h
                 parser.move_offset(parser.current_line.length - parser.offset)
                 next true
-              elsif match = REGEX_HEADERATX.match(parser.current_line[parser.next_nonspace..-1])
+              elsif parser.indent < 4 && match = REGEX_HEADERATX.match(parser.current_line[parser.next_nonspace..-1])
                 parser.move_to_next_nonspace
                 parser.move_offset(match[0].length)
                 h = Header.new(match[0].strip.length)
@@ -363,7 +363,6 @@ module RubyCoMa
         end
 
         if block_to_close == @current_block
-          puts "hit btc is #{block_to_close.class}"
           finalize_current_block
           return if (block_to_close.class == Code && block_to_close.is_fenced) || block_to_close.class == Paragraph
         end
@@ -528,7 +527,7 @@ module RubyCoMa
         end
       end
 
-      puts "container is #{container.class} and lmb is #{@last_matched_block.class}"
+      @last_matched_block = nil
 
       until container.can_contain?(child)  # go up until we find a container
         finalize_block(container)

@@ -304,12 +304,12 @@ module Nodes
     end
 
     def next
-      return nil if @current.nil?
-
       cur = @current
       @entering = @next_entering
 
-      is_container = (cur.instance_of?(Paragraph) || cur.is_a?(Container) || (cur.is_a?(Inline) && cur.is_container?))
+      return nil if cur.nil?
+
+      is_container = (cur.class == Paragraph || cur.class == Header || cur.class <= Container || (cur.class == Inline && cur.is_container?))
 
       if @entering && is_container
         if cur.first_child
