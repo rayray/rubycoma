@@ -2,6 +2,7 @@ module RubyCoMa
   require_relative '../rubycoma/nodes'
   class HtmlRenderer
     include Nodes
+    require 'cgi'
 
     REGEX_HTMLTAG = /<[^>]*>/
 
@@ -68,7 +69,7 @@ module RubyCoMa
             when :html_inline
               out(current.content)
             when :text
-              out(current.content)
+              out(CGI::escapeHTML(current.content))
             when :softbreak
               out("\n")
             when :hardbreak
@@ -129,7 +130,7 @@ module RubyCoMa
               attrs << ['class', 'language-' << info_string] unless info_string.nil?
               cr
               out(create_tag('pre') << create_tag('code', attrs))
-              out(current.strings)
+              out(current.strings.map {|str| CGI::escapeHTML(str)})
               out("\n") unless current.is_fenced
               out(create_tag('/code') << create_tag('/pre'))
               cr

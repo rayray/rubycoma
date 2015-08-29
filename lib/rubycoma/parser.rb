@@ -341,8 +341,9 @@ module RubyCoMa
         should_continue = @@helpers[b.class][:continue].call(self, b)
         unless should_continue
           @last_matched_block = b.parent
+        else
+          b = b.last_child
         end
-        b = b.last_child
       end
 
       # code block, easy peasy
@@ -472,7 +473,7 @@ module RubyCoMa
         end
       end
 
-      @on_blank_line = line.length == 0
+      @on_blank_line = i >= line.length
       @next_nonspace = i
       @next_nonspace_column = cols
       @indent = @next_nonspace_column - @column

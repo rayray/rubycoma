@@ -98,7 +98,7 @@ module RubyCoMa
 
         unless inline_added
           @char_index += 1
-          add_inline(:text, CGI::escapeHTML(char_from_ord(c)))
+          add_inline(:text, char_from_ord(c))
         end
         c = peek
       end
@@ -398,7 +398,7 @@ module RubyCoMa
 
     def parse_string
       if m = match(REGEX_MAIN)
-        add_inline(:text, CGI::escapeHTML(m))
+        add_inline(:text, m)
         return true
       end
       false
@@ -450,7 +450,7 @@ module RubyCoMa
       char_after = if cc_after == -1
                      "\n"
                    else
-                     CGI::escapeHTML(char_from_ord(cc_after))
+                     char_from_ord(cc_after)
                    end
 
       after_is_whitespace = char_after =~ REGEX_WHITESPACECHARACTER
