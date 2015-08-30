@@ -198,7 +198,7 @@ module RubyCoMa
                         else
                           nil
                         end
-                next false if match && match[0].length >= container.fence_length
+                next false if match && match[0].length >= container.fence_length && ln[parser.next_nonspace..-1].strip.length == match[0].length
 
                 i = container.fence_offset
                 while i > 0 && parser.char_code_at(ln, parser.offset) == CHARCODE_SPACE
@@ -224,6 +224,7 @@ module RubyCoMa
                 str.gsub!(/(\n *)+\Z/, "\n")
                 block.strings = str.split("\n")
               end
+              block.strings << ""
             },
             :start    => proc { |parser|
               if parser.indent >= 4 && parser.current_block.class != Paragraph && !parser.on_blank_line
@@ -345,10 +346,10 @@ module RubyCoMa
       b = @doc
       while @last_matched_block.nil? && !b.nil? && b.open
         should_continue = @@helpers[b.class][:continue].call(self, b)
-        unless should_continue
-          @last_matched_block = b.parent
-        else
+        if should_continue
           b = b.last_child
+        else
+          @last_matched_block = b.parent
         end
       end
 

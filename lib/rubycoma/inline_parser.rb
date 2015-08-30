@@ -210,7 +210,7 @@ module RubyCoMa
       matched = match(REGEX_TICKS)
       until matched.nil?
         if matched == ticks
-          add_inline(:code_inline, @string[after_open_ticks..(@char_index - ticks.length)-1])
+          add_inline(:code_inline, @string[after_open_ticks..(@char_index - ticks.length)-1].strip)
           return true
         end
       end

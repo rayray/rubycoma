@@ -127,11 +127,10 @@ module RubyCoMa
                 cr
             when c == Code
               info_string = current.info_string
-              attrs << ['class', 'language-' << info_string] unless info_string.nil?
+              attrs << ['class', 'language-' << info_string.split.first] unless info_string.nil?
               cr
               out(create_tag('pre') << create_tag('code', attrs))
               out(current.strings.map {|str| CGI::escapeHTML(str)})
-              out("\n") unless current.is_fenced
               out(create_tag('/code') << create_tag('/pre'))
               cr
             when c == List
