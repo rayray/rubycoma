@@ -218,7 +218,13 @@ module RubyCoMa
               end
               true
             },
-            :finalize => proc {},
+            :finalize => proc { |parser, block|
+              unless block.is_fenced
+                str = block.strings.join("\n")
+                str.gsub!(/(\n *)+\Z/, "\n")
+                block.strings = str.split("\n")
+              end
+            },
             :start    => proc { |parser|
               if parser.indent >= 4 && parser.current_block.class != Paragraph && !parser.on_blank_line
                   parser.move_offset_by_columns(4)
