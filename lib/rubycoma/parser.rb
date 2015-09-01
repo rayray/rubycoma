@@ -1,9 +1,11 @@
 module RubyCoMa
   require_relative '../rubycoma/nodes'
   require_relative '../rubycoma/inline_parser'
+  require_relative '../rubycoma/regexes'
 
   class Parser
     include Nodes
+    include Regexes
 
     attr_accessor :current_block
     attr_accessor :current_line
@@ -17,23 +19,14 @@ module RubyCoMa
     attr_accessor :doc
     attr_accessor :last_line_length
 
+    CHARCODE_LESSTHAN           = 60
     CHARCODE_GREATERTHAN        = 62
     CHARCODE_SPACE              = 32
     CHARCODE_TAB                = 9
     CHARCODE_NEWLINE            = 10
     CHARCODE_LEFTSQUAREBRACKET  = 91
 
-    STRINGREGEX_TAGNAMES        = '(?:article|header|aside|hgroup|iframe|blockquote|hr|body|li|map|button|object|canvas|ol|caption|output|col|p|colgroup|pre|dd|progress|div|section|dl|table|td|dt|tbody|embed|textarea|fieldset|tfoot|figcaption|th|figure|thead|footer|footer|tr|form|ul|h1|h2|h3|h4|h5|h6|video|script|style)'
-    STRINGREGEX_HTMLOPEN        = '<(?:' << STRINGREGEX_TAGNAMES << '[\s/>]|/' << STRINGREGEX_TAGNAMES << '[\s>]|[?!])'
 
-    REGEX_CODEFENCE             = /^`{3,}(?!.*`)|^~{3,}(?!.*~)/
-    REGEX_INDENTEDCODE          = /^\s{4,}(.*)/
-    REGEX_HORIZONTALRULE        = /^(?:(?:\* *){3,}|(?:_ *){3,}|(?:- *){3,}) *$/
-    REGEX_HTMLOPEN              = Regexp.new(STRINGREGEX_HTMLOPEN, Regexp::IGNORECASE)
-    REGEX_HEADERATX             = /^\#{1,6}(?: +|$)/
-    REGEX_HEADERSETEXT          = /^(?:=+|-+) *$/
-    REGEX_LISTBULLET            = /^[*+-]( +|$)/
-    REGEX_LISTORDERED           = /^(\d+)([.)])( +|$)/
 
     @@helpers = {
         Document => {
@@ -252,15 +245,28 @@ module RubyCoMa
             }
         },
         HTML => {
-            :continue => proc { |parser|
-              !parser.on_blank_line
+            :continue => proc { |parser, container|
+              !(parser.on_blank_line && ((6..7) === container.block_type))
             },
             :finalize => proc {},
             :start    => proc { |parser|
-              if REGEX_HTMLOPEN.match(parser.current_line[parser.next_nonspace..-1])
-                b = HTML.new
-                parser.add_child(b)
-                next true
+              if parser.indent <= 3 && parser.char_code_at(parser.current_line, parser.next_nonspace) == CHARCODE_LESSTHAN
+                str = parser.current_line[parser.next_nonspace..-1]
+                match_found = false
+
+                REGEX_HTMLOPENS.each_with_index { |re, idx|
+                  block_type = idx + 1
+                  match = re.match(str)
+
+                  if match && (block_type < 7 || parser.current_block.class != Paragraph)
+                    b = HTML.new
+                    b.block_type = block_type
+                    parser.add_child(b)
+                    match_found = true
+                    break
+                  end
+                }
+                next match_found
               end
               false
             }
@@ -412,6 +418,13 @@ module RubyCoMa
       end
 
       add_line_to_block
+
+      if @current_block.class == HTML && (1..5) === @current_block.block_type
+        match = REGEX_HTMLCLOSES[@current_block.block_type - 1].match(@current_line[@offset..-1])
+        if match
+          finalize_current_block
+        end
+      end
     end
 
     def finalize_block(node)

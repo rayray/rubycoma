@@ -205,7 +205,7 @@ module Nodes
   end
 
   class Paragraph < Leaf; attr_accessor :last_line_blank; end
-  class HTML < Leaf; end
+  class HTML < Leaf; attr_accessor :block_type; end
   class Code < Leaf
     attr_accessor :is_fenced
     attr_accessor :fence_character
