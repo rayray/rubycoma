@@ -68,5 +68,6 @@ module RubyCoMa
     REGEX_HEADERSETEXT          = /^(?:=+|-+) *$/
     REGEX_LISTBULLET            = /^[*+-]( +|$)/
     REGEX_LISTORDERED           = /^(\d+)([.)])( +|$)/
+    REGEX_SPACEATEOL            = /^ *(?:\n|$)/
   end
 end

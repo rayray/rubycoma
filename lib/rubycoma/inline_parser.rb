@@ -1,11 +1,15 @@
 module RubyCoMa
-  require_relative '../rubycoma/nodes'
-  require_relative '../rubycoma/regexes'
+  require_relative 'nodes'
+  require_relative 'regexes'
+  require 'unicode_utils'
 
   class InlineParser
     include Nodes
     include Regexes
     require 'cgi'
+    require 'uri'
+
+    attr_accessor :ref_map
 
     CHARCODE_AMPERSAND      = 38
     CHARCODE_ASTERISK       = 42
@@ -63,6 +67,70 @@ module RubyCoMa
         c = peek
       end
       process_emphasis
+    end
+
+    def parse_link_reference(s, refmap)
+      @string = s
+      @char_index = 0
+      start_pos = @char_index
+
+      match_chars = parse_link_label
+      return 0 if match_chars < 1
+
+      raw_label = @string[0..match_chars-1]
+
+      if peek == CHARCODE_COLON
+        @char_index += 1
+      else
+        @char_index = start_pos
+        return 0
+      end
+
+      spnl
+
+      dest = parse_link_destination
+      if dest.to_s.empty?
+        @char_index = start_pos
+        return 0
+      end
+
+      before_title = @char_index
+      spnl
+      title = parse_link_title
+      if title.nil?
+        title = ''
+        @char_index = before_title
+      end
+
+      at_line_end = true
+
+      if match(REGEX_SPACEATEOL).nil?
+        if title == ''
+          at_line_end = false
+        else
+          title = ''
+          @char_index = before_title
+          at_line_end = match(REGEX_SPACEATEOL) != nil
+        end
+      end
+
+      unless at_line_end
+        @char_index = start_pos
+        return 0
+      end
+
+      norm_label = UnicodeUtils.downcase(raw_label).strip.gsub(/\s+/,' ')
+      if norm_label == ''
+        @char_index = start_pos
+        return 0
+      end
+
+      if refmap[norm_label].nil?
+        refmap[norm_label] = { :link_dest => dest,
+                               :link_title => title }
+      end
+
+      @char_index - start_pos
     end
 
     def peek
@@ -215,9 +283,9 @@ module RubyCoMa
       if res.nil?
         res = match(REGEX_LINKDEST)
         return nil if res.nil?
-        return CGI::escape(res)
+        return URI::escape(res)
       end
-      CGI::escape(res[1..-2])
+      URI::escape(res[1..-2])
     end
 
     def parse_link_title
@@ -286,7 +354,13 @@ module RubyCoMa
                      @string[before_label..before_label+n-1]
                    end
         @char_index = savepos if n == 0
-        #TODO implement reference map
+
+        link = @ref_map[UnicodeUtils.downcase(reflabel).strip.gsub(/\s+/,' ')]
+        unless link.nil?
+          dest = link[:link_dest]
+          title = link[:link_title]
+          matched = true
+        end
       end
 
       if matched
@@ -302,7 +376,7 @@ module RubyCoMa
           tmp = nxt
         end
 
-        add_inline(inl)
+        @block.add_child(inl)
         process_emphasis(opener[:previous])
         opener[:inline_node].remove
 

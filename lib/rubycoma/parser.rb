@@ -18,6 +18,8 @@ module RubyCoMa
     attr_accessor :last_line_blank
     attr_accessor :doc
     attr_accessor :last_line_length
+    attr_accessor :ref_map
+    attr_reader   :iparser
 
     CHARCODE_LESSTHAN           = 60
     CHARCODE_GREATERTHAN        = 62
@@ -25,8 +27,6 @@ module RubyCoMa
     CHARCODE_TAB                = 9
     CHARCODE_NEWLINE            = 10
     CHARCODE_LEFTSQUAREBRACKET  = 91
-
-
 
     @@helpers = {
         Document => {
@@ -275,8 +275,24 @@ module RubyCoMa
             :continue => proc { |parser|
               !parser.on_blank_line
             },
-            :finalize => proc {
-              # jgm looks for link refs here
+            :finalize => proc { |parser, block|
+              pos = 0
+              has_ref_defs = false
+              string_content = block.strings.join("\n")
+
+              while parser.char_code_at(string_content, 0) == CHARCODE_LEFTSQUAREBRACKET
+                pos = parser.iparser.parse_link_reference(string_content, parser.ref_map)
+                break if pos == 0
+                string_content = string_content[pos..-1]
+                has_ref_defs = true
+              end
+
+              if has_ref_defs && string_content.strip.length < 1
+                block.remove
+                next
+              end
+
+              block.strings = string_content.split("\n")
             },
             :start    => proc {false}
         }
@@ -296,6 +312,8 @@ module RubyCoMa
       @on_blank_line = false
       @last_line_blank = false
       @last_line_length = 0
+      @ref_map = Hash.new
+      @iparser = InlineParser.new
     end
 
     def parse_string(input)
@@ -314,7 +332,7 @@ module RubyCoMa
 
     def parse_lines(lines)
       lines.each_with_index { |line, index|
-        @current_line = index
+        @line_number = index
         @last_line_blank = @on_blank_line
         @on_blank_line = false
         incorporate_line(line)
@@ -328,13 +346,13 @@ module RubyCoMa
     end
 
     def parse_inlines(block)
-      iparser = InlineParser.new
+      @iparser.ref_map = @ref_map
       walker = NodeWalker.new(block)
       current = walker.next
 
       until current.nil?
         if !walker.entering && (current.instance_of?(Paragraph) || current.instance_of?(Header))
-          iparser.parse_block(current)
+          @iparser.parse_block(current)
         end
         current = walker.next
       end
@@ -350,6 +368,7 @@ module RubyCoMa
       should_continue = true
 
       b = @doc
+
       while @last_matched_block.nil? && !b.nil? && b.open
         should_continue = @@helpers[b.class][:continue].call(self, b)
         if should_continue
