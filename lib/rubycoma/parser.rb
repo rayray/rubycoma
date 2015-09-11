@@ -368,7 +368,6 @@ module RubyCoMa
       should_continue = true
 
       b = @doc
-
       while @last_matched_block.nil? && !b.nil? && b.open
         should_continue = @@helpers[b.class][:continue].call(self, b)
         if should_continue
@@ -453,8 +452,9 @@ module RubyCoMa
 
     def finalize_current_block
       @current_block.open = false
+      p = @current_block.parent
       @@helpers[@current_block.class][:finalize].call(self, @current_block)
-      @current_block = @current_block.parent
+      @current_block = p
     end
 
     def ends_with_blank_line(node)
@@ -567,16 +567,18 @@ module RubyCoMa
 
       if @last_matched_block && container != @last_matched_block
         until container == @last_matched_block
+          p = container.parent
           finalize_block(container)
-          container = container.parent
+          container = p
         end
       end
 
       @last_matched_block = nil
 
       until container.can_contain?(child)  # go up until we find a container
+        p = container.parent
         finalize_block(container)
-        container = container.parent
+        container = p
       end
       container.add_child(child)
       @current_block = child
