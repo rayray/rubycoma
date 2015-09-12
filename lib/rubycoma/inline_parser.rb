@@ -151,10 +151,7 @@ module RubyCoMa
     end
 
     def spnl
-      match(REGEX_SPACES)
-      if peek == CHARCODE_NEWLINE
-        match(REGEX_SPACES)
-      end
+      match(/^ *(?:\n *)?/)
       true
     end
 
