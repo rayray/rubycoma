@@ -35,7 +35,7 @@ module RubyCoMa
                                                  '\'(' << STRINGREGEX_ESCAPED_CHAR << '|[^\'\\x00])*\'' <<
                                                  '|' <<
                                                  '\\((' << STRINGREGEX_ESCAPED_CHAR << '|[^)\\x00])*\\))')
-    REGEX_LINKLABEL             = /^\[(?:[^\\\[\]]|\\[\[\]]){0,1000}\]/
+    REGEX_LINKLABEL             = /\A\[(?:[^\\\[\]]|\\[\[\]]){0,1000}\]/
     REGEX_TICKSHERE             = /^`+/
     REGEX_TICKS                 = /`+/
     REGEX_EMAILAUTOLINK         = /^<([a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)>/

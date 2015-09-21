@@ -346,13 +346,14 @@ module RubyCoMa
         before_label = @char_index
         n = parse_link_label
         reflabel = if n == 0 || n == 2
-                     @string[opener[:index]..start_pos]
+                     @string[opener[:index]..start_pos-1]
                    else
                      @string[before_label..before_label+n-1]
                    end
         @char_index = savepos if n == 0
 
-        link = @ref_map[UnicodeUtils.downcase(reflabel).strip.gsub(/\s+/,' ')]
+        key = UnicodeUtils.downcase(reflabel).strip.gsub(/\s+/,' ')
+        link = @ref_map[key]
         unless link.nil?
           dest = link[:link_dest]
           title = link[:link_title]
