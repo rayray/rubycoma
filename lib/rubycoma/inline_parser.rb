@@ -1,11 +1,11 @@
 module RubyCoMa
   require_relative 'nodes'
-  require_relative 'regexes'
+  require_relative 'common'
   require 'unicode_utils'
 
   class InlineParser
     include Nodes
-    include Regexes
+    include Common
     require 'cgi'
     require 'uri'
 
@@ -97,7 +97,7 @@ module RubyCoMa
       before_title = @char_index
       spnl
       title = parse_link_title
-      if title.nil?
+      if title.to_s.empty?
         title = ''
         @char_index = before_title
       end
@@ -280,7 +280,7 @@ module RubyCoMa
       if res.nil?
         res = match(REGEX_LINKDEST)
         return nil if res.nil?
-        return URI::escape(res)
+        return URI::escape(URI::unescape(unescape_string(res)))
       end
       URI::escape(res[1..-2])
     end

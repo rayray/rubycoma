@@ -1,5 +1,6 @@
 module RubyCoMa
-  module Regexes
+  require 'cgi'
+  module Common
     STRINGREGEX_ESCAPABLE           = '[!"#$%&\'()*+,./\\:;<=>?@\[\]^_`{|}~-]'
     STRINGREGEX_ESCAPED_CHAR        = '\\\\' << STRINGREGEX_ESCAPABLE
     STRINGREGEX_REG_CHAR            = '[^\\\\()\\x00-\\x20]'
@@ -28,7 +29,7 @@ module RubyCoMa
     REGEX_ESCAPABLE             = Regexp.new('^' << STRINGREGEX_ESCAPABLE)
     REGEX_SPACES                = /^ */
     REGEX_LINKDESTBRACES        = Regexp.new('^(?:[<](?:[^<>\\n\\\\\\x00]' << '|' << STRINGREGEX_ESCAPED_CHAR << '|' << '\\\\)*[>])')
-    REGEX_LINKDEST              = Regexp.new('^(?:' << STRINGREGEX_REG_CHAR << '+|' << STRINGREGEX_ESCAPED_CHAR << '|' << STRINGREGEX_IN_PARENS_NOSP << ')*')
+    REGEX_LINKDEST              = Regexp.new('^(?:' << STRINGREGEX_REG_CHAR << '+|' << STRINGREGEX_ESCAPED_CHAR << '|\\\\|' << STRINGREGEX_IN_PARENS_NOSP << ')*')
     REGEX_LINKTITLE             = Regexp.new('^(?:"(' << STRINGREGEX_ESCAPED_CHAR << '|[^"\\x00])*"' <<
                                                  '|' <<
                                                  '\'(' << STRINGREGEX_ESCAPED_CHAR << '|[^\'\\x00])*\'' <<
@@ -69,5 +70,22 @@ module RubyCoMa
     REGEX_LISTBULLET            = /^[*+-]( +|$)/
     REGEX_LISTORDERED           = /^(\d+)([.)])( +|$)/
     REGEX_SPACEATEOL            = /^ *(?:\n|$)/
+
+    REGEX_BSLASHORAMPERSAND     = /[\\&]/
+    REGEX_ENTORESCAPEDCHAR      = /\\#{STRINGREGEX_ESCAPABLE}|#{REGEX_ENTITY}/i
+
+    def unescape_string(str)
+      if REGEX_BSLASHORAMPERSAND.match(str)
+        str.gsub(REGEX_ENTORESCAPEDCHAR) { |m|
+          if m[0].ord == 92
+            m[1]
+          else
+            CGI::unescapeHTML(m)
+          end
+        }
+      else
+        str
+      end
+    end
   end
 end

@@ -69,7 +69,7 @@ module RubyCoMa
             when :html_inline
               out(current.content)
             when :text
-              out(CGI::escapeHTML(current.content))
+              out(replace_unsafe_chars(current.content))
             when :softbreak
               out("\n")
             when :hardbreak
@@ -91,7 +91,7 @@ module RubyCoMa
             when :link
               if walker.entering
                 attrs << ['href', current.destination]
-                attrs << ['title', current.title] if current.title
+                attrs << ['title', current.title] unless current.title.to_s.empty?
                 out(create_tag('a', attrs))
               else
                 out(create_tag('/a'))
@@ -188,6 +188,21 @@ module RubyCoMa
         current = walker.next
       end
       @buffer
+    end
+
+    def replace_unsafe_chars(str)
+      str.gsub(/[&<>"]/) { |s|
+        case s
+          when '&'
+            '&amp;'
+          when '<'
+            '&lt;'
+          when '>'
+            '&gt;'
+          when '"'
+            '&quot;'
+        end
+      }
     end
   end
 end

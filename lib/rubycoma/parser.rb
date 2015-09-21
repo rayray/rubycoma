@@ -1,11 +1,11 @@
 module RubyCoMa
-  require_relative '../rubycoma/nodes'
-  require_relative '../rubycoma/inline_parser'
-  require_relative '../rubycoma/regexes'
+  require_relative 'nodes'
+  require_relative 'inline_parser'
+  require_relative 'common'
 
   class Parser
     include Nodes
-    include Regexes
+    include Common
 
     attr_accessor :current_block
     attr_accessor :current_line
