@@ -288,7 +288,7 @@ module RubyCoMa
     def parse_link_title
       title = match(REGEX_LINKTITLE)
       return nil if title.nil?
-      title[1..-2]
+      unescape_string(title[1..-2])
     end
 
     def parse_link_label

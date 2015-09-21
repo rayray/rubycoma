@@ -91,7 +91,7 @@ module RubyCoMa
             when :link
               if walker.entering
                 attrs << ['href', current.destination]
-                attrs << ['title', current.title] unless current.title.to_s.empty?
+                attrs << ['title', replace_unsafe_chars(current.title)] unless current.title.to_s.empty?
                 out(create_tag('a', attrs))
               else
                 out(create_tag('/a'))
@@ -185,6 +185,7 @@ module RubyCoMa
               puts "Unknown node type: #{current.class}"
           end
         end
+        attrs = []
         current = walker.next
       end
       @buffer
