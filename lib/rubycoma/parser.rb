@@ -71,7 +71,7 @@ module RubyCoMa
             },
             :finalize => proc {},
             :start    => proc { |parser|
-              if parser.char_code_at(parser.current_line, parser.next_nonspace) == CHARCODE_GREATERTHAN
+              if parser.indent < 4 && parser.char_code_at(parser.current_line, parser.next_nonspace) == CHARCODE_GREATERTHAN
                 parser.move_to_next_nonspace
                 parser.move_offset(1)
                 cc = parser.char_code_at(parser.current_line, parser.offset)

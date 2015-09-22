@@ -167,6 +167,7 @@ module RubyCoMa
       if lastc && lastc.style == :text
         sps = REGEX_FINALSPACE.match(lastc.content)[0].length
         add_inline(sps >= 2 ? :hardbreak : :softbreak)
+        lastc.content = lastc.content.rstrip if sps >= 2
       else
         add_inline(:softbreak)
       end

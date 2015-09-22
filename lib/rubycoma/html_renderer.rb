@@ -74,6 +74,7 @@ module RubyCoMa
               out("\n")
             when :hardbreak
               out(create_tag('br', nil, true))
+              cr
             when :emphasized
               tag = if walker.entering
                       'em'
