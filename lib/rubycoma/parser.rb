@@ -302,6 +302,7 @@ module RubyCoMa
       @debug = debug
       @doc = Document.new
       @current_block = @doc
+      @previous_block = nil
       @current_line = nil
       @line_number = 0
       @offset = 0
@@ -314,6 +315,7 @@ module RubyCoMa
       @last_line_length = 0
       @ref_map = Hash.new
       @iparser = InlineParser.new
+      @all_closed = true
     end
 
     def parse_string(input)
@@ -362,88 +364,103 @@ module RubyCoMa
       @current_line = line
       @offset = 0
 
-      find_next_nonspace
-
       @last_matched_block = nil
+      @previous_block = @current_block
       should_continue = true
 
-      b = @doc
-      while @last_matched_block.nil? && !b.nil? && b.open
+      b = @doc.last_child
+
+      while !b.nil? && b.open
+        find_next_nonspace
         should_continue = @@helpers[b.class][:continue].call(self, b)
+
         if should_continue
           b = b.last_child
         else
-          @last_matched_block = b.parent
-        end
-      end
-
-      # code block, easy peasy
-      if should_continue && @current_block.accepts_lines? && @current_block.class != Paragraph
-        add_line_to_block
-        return
-      end
-
-      if @on_blank_line
-        return if @last_line_blank && close_all_lists(@current_block)
-      end
-
-      unless @last_matched_block.nil? || @last_matched_block.last_child.nil?
-        block_to_close = @last_matched_block.last_child
-        if block_to_close.class == Paragraph && block_to_close.parent.class == ListItem
-          block_to_close.parent.last_line_blank = true
-          block_to_close.last_line_blank = true
-        end
-
-        if block_to_close == @current_block
-          finalize_current_block
-          return if (block_to_close.class == Code && block_to_close.is_fenced) || block_to_close.class == Paragraph
-        elsif block_to_close.class <= Container
-          until @current_block == @last_matched_block
-            finalize_current_block
+          # fenced code we can just stop here
+          if b.class == Code && b.is_fenced?
+            @last_line_length = line.length
+            return
           end
+          b = b.parent
+          break
         end
       end
 
-      # try all node starts, stopping when we've hit a leaf to add our line
-      can_add_line = false
-      line_finished = false
-      until can_add_line
+      @all_closed = b == @current_block
+      @last_matched_block = b
+
+      if @on_blank_line && b.last_line_blank
+        close_all_lists(@last_matched_block)
+        b = @current_block
+      end
+
+      matched_leaf = b.class == Code
+
+      until matched_leaf
         find_next_nonspace
+
+        if @indent < 4 && REGEX_MAYBESPECIAL.match(@current_line[@next_nonspace..-1]).nil?
+          move_to_next_nonspace
+          break
+        end
+
         counter = 0
         @@helpers.each_value { |type|
           if type[:start].call(self)
-            if @offset >= @current_line.length
-              line_finished = true
-            elsif @current_block.class <= Leaf
-              can_add_line = true
-            else
-              find_next_nonspace
+            if @current_block.class < Leaf
+              matched_leaf = true
             end
+            b = @current_block
             break
           end
           counter += 1
         }
-        return if line_finished
+
         if counter == @@helpers.count
           move_to_next_nonspace
-          return if @on_blank_line
-          unless @current_block.class == Paragraph
-            p = Paragraph.new
-            add_child(p)
+          break
+        end
+      end
+
+      if !@all_closed && !@last_line_blank && @current_block.class == Paragraph
+        add_line_to_block
+      else
+        close_unmatched_blocks
+        if @on_blank_line && !b.last_child.nil?
+          b.last_child.last_line_blank = true
+        end
+
+        type = b.class
+
+        last_line_blank = @on_blank_line &&
+            !(type == BlockQuote || (type == Code && b.is_fenced?) || (type == ListItem && b.first_child.nil?))
+
+        container = b
+        until container.nil?
+          container.last_line_blank = last_line_blank
+          container = container.parent
+        end
+
+        if b.accepts_lines?
+          add_line_to_block
+
+          if @current_block.class == HTML && (1..5) === @current_block.block_type
+            match = REGEX_HTMLCLOSES[@current_block.block_type - 1].match(@current_line[@offset..-1])
+            if match
+              finalize_current_block
+            end
           end
-          can_add_line = true
+        elsif @offset < line.length && !@on_blank_line
+          p = Paragraph.new
+          add_child(p)
+          move_to_next_nonspace
+          add_line_to_block
         end
       end
-
-      add_line_to_block
-
-      if @current_block.class == HTML && (1..5) === @current_block.block_type
-        match = REGEX_HTMLCLOSES[@current_block.block_type - 1].match(@current_line[@offset..-1])
-        if match
-          finalize_current_block
-        end
-      end
+      @last_line_length = line.length
     end
+
 
     def finalize_block(node)
       node.open = false
@@ -483,16 +500,34 @@ module RubyCoMa
       line.gsub(/([^\t]*)\t/) {$1 + ' ' * (4 - ($1.length % 4))}
     end
 
-    def close_all_lists(node)
-      b = node
-      tree_changed = false
-      while b.class <= List
-        finalize_block(b)
-        tree_changed = true
+    def close_all_lists(block)
+      b = block
+      last_list = nil
+      until b.nil?
+        if b.class <= List
+          last_list = b
+        end
         b = b.parent
       end
-      @current_block = b
-      tree_changed
+      unless last_list.nil?
+        until block == last_list
+          finalize_block(block)
+          block = block.parent
+        end
+        finalize_block(last_list)
+        @current_block = last_list.parent
+      end
+    end
+
+    def close_unmatched_blocks
+      unless @all_closed
+        until @previous_block == @last_matched_block
+          parent = @previous_block.parent
+          finalize_block(@previous_block)
+          @previous_block = parent
+        end
+        @all_closed = true
+      end
     end
 
     def find_next_nonspace

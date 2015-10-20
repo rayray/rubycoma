@@ -21,6 +21,7 @@ module RubyCoMa
     STRINGREGEX_CDATA               = "<!\\[CDATA\\[[\\s\\S]*?\\]\\]>"
     STRINGREGEX_HTMLTAG             = '(?:' << STRINGREGEX_OPENTAG << '|' << STRINGREGEX_CLOSETAG << '|' << STRINGREGEX_HTMLCOMMENT << '|' << STRINGREGEX_PROCINSTRUCTION << '|' << STRINGREGEX_DECLARATION << '|' << STRINGREGEX_CDATA << ')'
 
+    REGEX_MAYBESPECIAL          = /^[#`~*+_=<>0-9-]/
     REGEX_NONSPECIALCHARS       = /^[^\n`\[\]\\!<&*_]+/m
     REGEX_ENTITY                = /^&(?:#x[a-f0-9]{1,8}|#[0-9]{1,8}|[a-z][a-z0-9]{1,31});/
     REGEX_WHITESPACECHARACTER   = /^\s/
