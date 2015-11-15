@@ -129,10 +129,21 @@ module Nodes
   class Block < DLLNode
     attr_accessor :parent
     attr_accessor :open
+    attr_accessor :last_line_blank
+
+    attr_accessor :start_line
+    attr_accessor :start_column
+    attr_accessor :end_line
+    attr_accessor :end_column
 
     def initialize
       super()
       @open = true
+      @last_line_blank = false
+      @start_line = 0
+      @start_column = 0
+      @end_line = 0
+      @end_column = 0
     end
 
     def type
@@ -204,7 +215,7 @@ module Nodes
     end
   end
 
-  class Paragraph < Leaf; attr_accessor :last_line_blank; end
+  class Paragraph < Leaf; end
   class HTML < Leaf; attr_accessor :block_type; end
   class Code < Leaf
     attr_accessor :is_fenced
@@ -258,14 +269,12 @@ module Nodes
     attr_accessor :delimiter
     attr_accessor :marker_offset
     attr_accessor :padding
-    attr_accessor :last_line_blank
 
     def can_contain?(block); block.class == ListItem; end
     def initialize(ordered)
       super()
       @is_tight = true
       @is_ordered = ordered
-      @last_line_blank = false
     end
 
     def matches?(l)
