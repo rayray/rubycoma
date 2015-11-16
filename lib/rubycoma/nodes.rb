@@ -126,24 +126,33 @@ module Nodes
     end
   end
 
+  class SourcePosition
+    attr_accessor :line
+    attr_accessor :column
+
+    def initialize(line, column)
+      @line = line
+      @column = column
+    end
+
+    def to_s(indent = 0)
+      str = ' ' * (indent) << "line: #{@line}\n"
+      str << ' ' * (indent) << "column: #{@column}\n"
+      str
+    end
+  end
+
   class Block < DLLNode
     attr_accessor :parent
     attr_accessor :open
     attr_accessor :last_line_blank
-
-    attr_accessor :start_line
-    attr_accessor :start_column
-    attr_accessor :end_line
-    attr_accessor :end_column
+    attr_accessor :start_pos
+    attr_accessor :end_pos
 
     def initialize
       super()
       @open = true
       @last_line_blank = false
-      @start_line = 0
-      @start_column = 0
-      @end_line = 0
-      @end_column = 0
     end
 
     def type
@@ -171,6 +180,14 @@ module Nodes
             current = current.next
           end
           str << ' ' * var_indent << "]\n"
+        elsif var == :@start_pos
+          str << ' ' * var_indent << "start position: {\n"
+          str << value.to_s(arr_indent)
+          str << ' ' * var_indent << "}\n"
+        elsif var == :@end_pos
+          str << ' ' * var_indent << "end position: {\n"
+          str << value.to_s(arr_indent)
+          str << ' ' * var_indent << "}\n"
         elsif value.class == Array && value.count > 0
           str << ' ' * var_indent << "#{var}: [\n"
           value.each { |obj|
