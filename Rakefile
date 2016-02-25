@@ -20,36 +20,38 @@ namespace :test do
 
     header_regex = /#+ /
 
-    args[:str].each_line { |line|
+    args[:str].each_line { |raw_line|
       line_number += 1
-      if state == 0 && header_regex.match(line)
-        header_text = line.sub(header_regex, '').strip
-      end
+      line = raw_line.strip
 
-      if line.strip == '.'
-        state = (state + 1) % 3
-        if state == 0
-          example_number = example_number + 1
-          end_line = line_number
-          tests.push({
-                         :example => example_number,
-                         :start_line => start_line,
-                         :end_line => end_line,
-                         :section => header_text,
-                         :markdown => markdown_lines.join('').gsub('→',"\t"),
-                         :html => html_lines.join('').gsub('→',"\t")
-                     })
-          start_line = 0
-          markdown_lines = []
-          html_lines = []
-        end
+      if line == '```````````````````````````````` example'
+        state = 1
+      elsif line == '````````````````````````````````'
+        state = 0
+        example_number += 1
+        end_line = line_number
+        tests.push({
+                       :example => example_number,
+                       :start_line => start_line,
+                       :end_line => end_line,
+                       :section => header_text,
+                       :markdown => markdown_lines.join('').gsub('→',"\t"),
+                       :html => html_lines.join('').gsub('→',"\t")
+                   })
+        start_line = 0
+        markdown_lines = []
+        html_lines = []
+      elsif line == '.'
+        state = 2
       elsif state == 1
         if start_line == 0
           start_line = line_number - 1
         end
-        markdown_lines.push(line)
+        markdown_lines.push(raw_line)
       elsif state == 2
-        html_lines.push(line)
+        html_lines.push(raw_line)
+      elsif state == 0 && header_regex.match(raw_line)
+        header_text = raw_line.sub(header_regex, '').strip
       end
     }
 
